@@ -1,5 +1,13 @@
 {
-  "name": "Home Assistant Dev",
-  "image": "ghcr.io/home-assistant/devcontainer:stable",
-  "workspaceFolder": "/workspaces/ha"
+  "name": "Python + Home Assistant",
+  "image": "mcr.microsoft.com/devcontainers/python:1-3.12-bullseye",
+  "postCreateCommand": "pip install --upgrade pip && pip install homeassistant",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "ms-python.vscode-pylance"
+      ]
+    }
+  }
 }
