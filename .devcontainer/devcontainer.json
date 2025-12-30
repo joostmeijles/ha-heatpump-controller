@@ -1,0 +1,5 @@
+{
+  "name": "Home Assistant Dev",
+  "image": "ghcr.io/home-assistant/devcontainer:stable",
+  "workspaceFolder": "/workspaces/ha"
+}

@@ -8,3 +8,6 @@ default_config:
 
 logger:
   default: info
+
+climate:
+  - platform: heatpump_controller

@@ -1,0 +1,8 @@
+{
+  "domain": "heatpump_controller",
+  "name": "Heatpump Controller",
+  "version": "0.1.0",
+  "requirements": [],
+  "codeowners": [],
+  "dependencies": []
+}

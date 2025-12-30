@@ -1,0 +1,1 @@
+DOMAIN = "heatpump_controller"
