@@ -1,0 +1,14 @@
+# Home Assistant runtime files
+config/.storage/
+config/.cloud/
+config/home-assistant_v2.db
+config/home-assistant.log
+config/home-assistant.log.*
+config/*.db
+config/*.db-shm
+config/*.db-wal
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
