@@ -1,4 +1,3 @@
-from dataclasses import
 from typing import Any
 
 from homeassistant.components.climate import ClimateEntity
