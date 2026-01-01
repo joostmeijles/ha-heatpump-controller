@@ -8,6 +8,14 @@ default_config:
 
 logger:
   default: info
+  logs:
+    custom_components.heatpump_controller: debug
 
 climate:
   - platform: heatpump_controller
+    threshold: 0.15
+    rooms:
+      - sensor: climate.living_room_thermostat
+        weight: 1.5
+      - sensor: climate.bedroom_thermostat
+        weight: 1.0

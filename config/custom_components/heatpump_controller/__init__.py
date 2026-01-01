@@ -1,5 +1,6 @@
-from .const import DOMAIN
-from .climate import HeatPumpThermostat
+from homeassistant.core import HomeAssistant
+from homeassistant.config_entries import ConfigEntry
 
-async def async_setup(hass, config):
+
+async def async_setup(hass: HomeAssistant, config: ConfigEntry) -> bool:
     return True
