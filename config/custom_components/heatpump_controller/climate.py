@@ -50,6 +50,7 @@ class HeatPumpThermostat(ClimateEntity):
                 "avg_needed_temp": avg_needed_temp,
                 "threshold_before_heat": self.threshold_before_heat,
                 "threshold_before_off": self.threshold_before_off,
+                "num_rooms_below_target": self._calculate_num_rooms_below_target(temps),
             }
         self.async_write_ha_state()
 
@@ -75,6 +76,14 @@ class HeatPumpThermostat(ClimateEntity):
             else:
                 _LOGGER.warning(f"Sensor {room['sensor']} not found")
         return temps
+
+    def _calculate_num_rooms_below_target(self, temps: list[tuple[float, float, float]]) -> int:
+        """Calculate number of rooms below their target temperatures."""
+        count = 0
+        for temp, target, _ in temps:
+            if temp < target:
+                count += 1
+        return count
 
     def _calculate_weighted_averages(self, temps: list[tuple[float, float, float]]) -> tuple[float, float, float]:
         """
