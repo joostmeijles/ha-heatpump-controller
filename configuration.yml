@@ -13,7 +13,8 @@ logger:
 
 climate:
   - platform: heatpump_controller
-    threshold: 0.15
+    threshold_before_heat: 0.07
+    threshold_before_off: 0.007
     rooms:
       - sensor: climate.living_room_thermostat
         weight: 1.5
