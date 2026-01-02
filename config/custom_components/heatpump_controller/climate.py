@@ -105,7 +105,7 @@ class HeatPumpThermostat(ClimateEntity):
         weighted_needed_temp = sum(weighted_needed_temp_values) / total_weight
 
         _LOGGER.debug(
-            f"Weighted temp: {weighted_temp:.2f}°C, weigthed target: {weighted_target:.2f}°C, average gap to target: {weighted_needed_temp:.2f}°C")
+            f"Weighted temp: {weighted_temp:.2f}°C, weighted target: {weighted_target:.2f}°C, average gap to target: {weighted_needed_temp:.2f}°C")
         return weighted_temp, weighted_target, weighted_needed_temp
 
     def _update_hvac_mode(self, avg_needed_temp: float) -> None:
