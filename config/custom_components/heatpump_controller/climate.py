@@ -47,7 +47,7 @@ class HeatPumpThermostat(ClimateEntity):
 
             self._attr_extra_state_attributes = {
                 "avg_needed_temp": avg_needed_temp,
-                "threshold": self,
+                "threshold": self.threshold,
             }
         self.async_write_ha_state()
 
