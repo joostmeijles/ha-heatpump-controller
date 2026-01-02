@@ -123,7 +123,7 @@ class HeatPumpThermostat(ClimateEntity):
             return
 
         _LOGGER.info(
-            f"No change needed. Mode is {self._attr_hvac_mode}. Average needed temperature is ({avg_needed_temp:.2f}°C and thresholds are before HEAT: {self.threshold_before_heat}°C) and before OFF: {self.threshold_before_off}°C.")
+            f"No change needed. Mode is {self._attr_hvac_mode}. Average needed temperature is {avg_needed_temp:.2f}°C and thresholds are before HEAT: {self.threshold_before_heat}°C and before OFF: {self.threshold_before_off}°C.")
 
 
 async def async_setup_platform(hass: HomeAssistant, config: dict[str, Any], async_add_entities: AddEntitiesCallback, discovery_info: dict[str, Any] | None = None) -> None:
