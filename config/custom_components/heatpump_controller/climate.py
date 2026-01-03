@@ -10,7 +10,7 @@ from homeassistant.core import HomeAssistant, State
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 import logging
 
-from .config import CONF_THRESHOLD_BEFORE_HEAT, CONF_THRESHOLD_BEFORE_OFF, CONF_THRESHOLD_ROOM_NEEDS_HEAT, RoomConfig, CONF_ROOMS
+from .config import CONF_ON_OFF_SWITCH, CONF_THRESHOLD_BEFORE_HEAT, CONF_THRESHOLD_BEFORE_OFF, CONF_THRESHOLD_ROOM_NEEDS_HEAT, RoomConfig, CONF_ROOMS
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -21,10 +21,11 @@ class HeatPumpThermostat(ClimateEntity):
     _attr_supported_features = ClimateEntityFeature.TARGET_TEMPERATURE
     _attr_hvac_modes = [HVACMode.HEAT, HVACMode.OFF]
 
-    def __init__(self, hass: HomeAssistant, rooms: list[RoomConfig], threshold_before_heat: float, threshold_before_off: float, threshold_room_needs_heat: float) -> None:
+    def __init__(self, hass: HomeAssistant, rooms: list[RoomConfig], on_off_switch: str | None, threshold_before_heat: float, threshold_before_off: float, threshold_room_needs_heat: float) -> None:
         self._attr_hvac_mode = HVACMode.OFF
         self.hass = hass
         self.rooms = rooms
+        self.on_off_switch = on_off_switch
         self.threshold_before_heat = threshold_before_heat
         self.threshold_before_off = threshold_before_off
         self.threshold_room_needs_heat = threshold_room_needs_heat
@@ -61,6 +62,7 @@ class HeatPumpThermostat(ClimateEntity):
                 "any_room_needs_heat": any_room_needs_heat,
             }
         self.async_write_ha_state()
+        await self._switch_heatpump()
 
     def _read_room_temperatures(self) -> list[tuple[float, float, float]]:
         """Read temperatures from all room sensors."""
@@ -170,12 +172,43 @@ class HeatPumpThermostat(ClimateEntity):
         _LOGGER.info(
             f"No change needed. Mode is {self._attr_hvac_mode}. Average needed temperature is {avg_needed_temp:.3f}°C and thresholds are before HEAT: {self.threshold_before_heat}°C and before OFF: {self.threshold_before_off}°C.")
 
+    async def _switch_heatpump(self) -> None:
+        """Switch the heatpump on or off."""
+        if not self.on_off_switch:
+            _LOGGER.info("Heatpump switch not configured.")
+            return
+
+        state = self.hass.states.get(self.on_off_switch)
+
+        if state is None:
+            _LOGGER.warning("Switch not found")
+            return
+
+        is_on = state.state == "on"
+
+        if self._attr_hvac_mode == HVACMode.HEAT and not is_on:
+            _LOGGER.info("Turning heatpump switch ON")
+            await self.hass.services.async_call(
+                "switch",
+                "turn_on",
+                {"entity_id": state.entity_id},
+            )
+
+        elif self._attr_hvac_mode == HVACMode.OFF and is_on:
+            _LOGGER.info("Turning heatpump switch OFF")
+            await self.hass.services.async_call(
+                "switch",
+                "turn_off",
+                {"entity_id": state.entity_id},
+            )
+
 
 async def async_setup_platform(hass: HomeAssistant, config: dict[str, Any], async_add_entities: AddEntitiesCallback, discovery_info: dict[str, Any] | None = None) -> None:
     rooms: list[RoomConfig] = config[CONF_ROOMS]
+    on_off_switch: str | None = config.get(CONF_ON_OFF_SWITCH)
     threshold_before_heat: float = config[CONF_THRESHOLD_BEFORE_HEAT]
     threshold_before_off: float = config[CONF_THRESHOLD_BEFORE_OFF]
     threshold_room_needs_heat: float = config[CONF_THRESHOLD_ROOM_NEEDS_HEAT]
 
     async_add_entities(
-        [HeatPumpThermostat(hass, rooms, threshold_before_heat, threshold_before_off, threshold_room_needs_heat)])
+        [HeatPumpThermostat(hass, rooms, on_off_switch, threshold_before_heat, threshold_before_off, threshold_room_needs_heat)])

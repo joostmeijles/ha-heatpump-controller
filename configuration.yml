@@ -13,6 +13,7 @@ logger:
 
 climate:
   - platform: heatpump_controller
+    on_off_switch: switch.heatpump_power
     threshold_before_heat: 0.07
     threshold_before_off: 0.007
     threshold_room_needs_heat: 0.3
