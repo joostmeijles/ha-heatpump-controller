@@ -10,7 +10,7 @@ from homeassistant.core import HomeAssistant, State
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 import logging
 
-from .config import CONF_THRESHOLD_BEFORE_HEAT, CONF_THRESHOLD_BEFORE_OFF, RoomConfig, CONF_ROOMS
+from .config import CONF_THRESHOLD_BEFORE_HEAT, CONF_THRESHOLD_BEFORE_OFF, CONF_THRESHOLD_ROOM_NEEDS_HEAT, RoomConfig, CONF_ROOMS
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -21,12 +21,13 @@ class HeatPumpThermostat(ClimateEntity):
     _attr_supported_features = ClimateEntityFeature.TARGET_TEMPERATURE
     _attr_hvac_modes = [HVACMode.HEAT, HVACMode.OFF]
 
-    def __init__(self, hass: HomeAssistant, rooms: list[RoomConfig], threshold_before_heat: float, threshold_before_off: float) -> None:
+    def __init__(self, hass: HomeAssistant, rooms: list[RoomConfig], threshold_before_heat: float, threshold_before_off: float, threshold_room_needs_heat: float) -> None:
         self._attr_hvac_mode = HVACMode.OFF
         self.hass = hass
         self.rooms = rooms
         self.threshold_before_heat = threshold_before_heat
         self.threshold_before_off = threshold_before_off
+        self.threshold_room_needs_heat = threshold_room_needs_heat
 
     async def async_set_temperature(self, **kwargs: Any) -> None:
         """Disable manual temperature setting."""
@@ -41,10 +42,12 @@ class HeatPumpThermostat(ClimateEntity):
         if temps:
             avg_temp, avg_target, avg_needed_temp = self._calculate_weighted_averages(
                 temps)
+            any_room_needs_heat = self._any_room_needs_heat(temps)
+
             # Update entity state
             self._attr_current_temperature = avg_temp
             self._attr_target_temperature = avg_target
-            self._update_hvac_mode(avg_needed_temp)
+            self._update_hvac_mode(avg_needed_temp, any_room_needs_heat)
 
             # Update extra state attributes
             self._attr_extra_state_attributes = {
@@ -53,7 +56,9 @@ class HeatPumpThermostat(ClimateEntity):
                 "avg_needed_temp": round(avg_needed_temp, 3),
                 "threshold_before_heat": self.threshold_before_heat,
                 "threshold_before_off": self.threshold_before_off,
+                "threshold_room_needs_heat": self.threshold_room_needs_heat,
                 "num_rooms_below_target": self._calculate_num_rooms_below_target(temps),
+                "any_room_needs_heat": any_room_needs_heat,
             }
         self.async_write_ha_state()
 
@@ -120,8 +125,36 @@ class HeatPumpThermostat(ClimateEntity):
             f"Weighted temp: {weighted_temp:.3f}°C, weighted target: {weighted_target:.3f}°C, average gap to target: {weighted_needed_temp:.3f}°C")
         return weighted_temp, weighted_target, weighted_needed_temp
 
-    def _update_hvac_mode(self, avg_needed_temp: float) -> None:
+    def _any_room_needs_heat(
+        self,
+        temps: list[tuple[float, float, float]]
+    ) -> bool:
+        """Return True if any room is below target by threshold."""
+        for current, target, _ in temps:
+            diff = target - current
+            if diff >= self.threshold_room_needs_heat:
+                _LOGGER.debug(
+                    "Room below target: current=%.3f target=%.3f diff=%.3f ≥ %.3f",
+                    current,
+                    target,
+                    diff,
+                    self.threshold_room_needs_heat,
+                )
+                return True
+        return False
+
+    def _update_hvac_mode(self, avg_needed_temp: float, any_room_needs_heat: bool) -> None:
         """Decide HVAC mode based on weighted average and thresholds."""
+        # 1️⃣ Hard rule: any room too cold → HEAT ON
+        if any_room_needs_heat:
+            if self._attr_hvac_mode == HVACMode.OFF:
+                _LOGGER.info(
+                    "Turning heat ON: at least one room is below target."
+                )
+                self._attr_hvac_mode = HVACMode.HEAT
+            return
+
+        # 2️⃣ Average-based hysteresis logic
         if self._attr_hvac_mode == HVACMode.OFF and avg_needed_temp >= self.threshold_before_heat:
             _LOGGER.info(
                 f"Turning heat ON. Average needed temperature above threshold ({avg_needed_temp:.3f}°C >= {self.threshold_before_heat}°C).")
@@ -142,6 +175,7 @@ async def async_setup_platform(hass: HomeAssistant, config: dict[str, Any], asyn
     rooms: list[RoomConfig] = config[CONF_ROOMS]
     threshold_before_heat: float = config[CONF_THRESHOLD_BEFORE_HEAT]
     threshold_before_off: float = config[CONF_THRESHOLD_BEFORE_OFF]
+    threshold_room_needs_heat: float = config[CONF_THRESHOLD_ROOM_NEEDS_HEAT]
 
     async_add_entities(
-        [HeatPumpThermostat(hass, rooms, threshold_before_heat, threshold_before_off)])
+        [HeatPumpThermostat(hass, rooms, threshold_before_heat, threshold_before_off, threshold_room_needs_heat)])

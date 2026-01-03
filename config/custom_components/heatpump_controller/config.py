@@ -8,6 +8,7 @@ CONF_SENSOR = "sensor"
 CONF_WEIGHT = "weight"
 CONF_THRESHOLD_BEFORE_HEAT = "threshold_before_heat"
 CONF_THRESHOLD_BEFORE_OFF = "threshold_before_off"
+CONF_THRESHOLD_ROOM_NEEDS_HEAT = "threshold_room_needs_heat"
 
 ROOM_SCHEMA = vol.Schema(
     {
@@ -22,6 +23,7 @@ PLATFORM_SCHEMA = vol.Schema(
         vol.Required(CONF_ROOMS): vol.All(cv.ensure_list, [ROOM_SCHEMA]),
         vol.Required(CONF_THRESHOLD_BEFORE_HEAT): vol.Coerce(float),
         vol.Required(CONF_THRESHOLD_BEFORE_OFF): vol.Coerce(float),
+        vol.Required(CONF_THRESHOLD_ROOM_NEEDS_HEAT): vol.Coerce(float),
     }
 )
 
