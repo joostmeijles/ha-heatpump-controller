@@ -93,7 +93,12 @@ class HeatPumpThermostat(ClimateEntity):
                 "pause_until": self._pause_until.isoformat() if self._pause_until else None,
             }
         self.async_write_ha_state()
-        await self._switch_heatpump()
+
+        if self.algorithm == ControlAlgorithm.MANUAL:
+            _LOGGER.info(
+                "Manual algorithm selected, skipping automatic control.")
+        else:
+            await self._switch_heatpump()
 
     async def pause(self, duration_minutes: float) -> None:
         """Pause the controller for a given number of minutes."""
