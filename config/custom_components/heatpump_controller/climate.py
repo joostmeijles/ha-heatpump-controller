@@ -1,15 +1,18 @@
+from datetime import datetime, timedelta
 from typing import Any
-
+import voluptuous as vol
 from homeassistant.components.climate import ClimateEntity
 from homeassistant.components.climate.const import (
     HVACMode,
     ClimateEntityFeature,
 )
 from homeassistant.const import UnitOfTemperature
-from homeassistant.core import HomeAssistant, State
+from homeassistant.core import HomeAssistant, State, ServiceCall
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.util import dt as dt_util
 import logging
 
+from .const import DOMAIN
 from .config import CONF_ON_OFF_SWITCH, CONF_THRESHOLD_BEFORE_HEAT, CONF_THRESHOLD_BEFORE_OFF, CONF_THRESHOLD_ROOM_NEEDS_HEAT, RoomConfig, CONF_ROOMS
 
 _LOGGER = logging.getLogger(__name__)
@@ -29,6 +32,7 @@ class HeatPumpThermostat(ClimateEntity):
         self.threshold_before_heat = threshold_before_heat
         self.threshold_before_off = threshold_before_off
         self.threshold_room_needs_heat = threshold_room_needs_heat
+        self._pause_until: datetime | None = None
 
     async def async_set_temperature(self, **kwargs: Any) -> None:
         """Disable manual temperature setting."""
@@ -60,9 +64,21 @@ class HeatPumpThermostat(ClimateEntity):
                 "threshold_room_needs_heat": self.threshold_room_needs_heat,
                 "num_rooms_below_target": self._calculate_num_rooms_below_target(temps),
                 "any_room_needs_heat": any_room_needs_heat,
+                "paused": self._is_paused(),
+                "pause_until": self._pause_until.isoformat() if self._pause_until else None,
             }
         self.async_write_ha_state()
         await self._switch_heatpump()
+
+    def pause(self, duration_minutes: float) -> None:
+        """Pause the controller for a given number of minutes."""
+        self._pause_until = dt_util.utcnow() + timedelta(minutes=duration_minutes)
+        _LOGGER.info(
+            f"Heatpump controller paused until {self._pause_until.isoformat()}")
+
+    def _is_paused(self) -> bool:
+        """Return True if pause is active and not expired."""
+        return self._pause_until is not None and dt_util.utcnow() < self._pause_until
 
     def _read_room_temperatures(self) -> list[tuple[float, float, float]]:
         """Read temperatures from all room sensors."""
@@ -147,7 +163,14 @@ class HeatPumpThermostat(ClimateEntity):
 
     def _update_hvac_mode(self, avg_needed_temp: float, any_room_needs_heat: bool) -> None:
         """Decide HVAC mode based on weighted average and thresholds."""
-        # 1️⃣ Hard rule: any room too cold → HEAT ON
+        # Check if paused
+        if self._is_paused():
+            if self._attr_hvac_mode != HVACMode.OFF:
+                _LOGGER.info("Controller paused → turning heat OFF")
+                self._attr_hvac_mode = HVACMode.OFF
+            return
+
+        # Any room too cold → HEAT ON
         if any_room_needs_heat:
             if self._attr_hvac_mode == HVACMode.OFF:
                 _LOGGER.info(
@@ -156,7 +179,7 @@ class HeatPumpThermostat(ClimateEntity):
                 self._attr_hvac_mode = HVACMode.HEAT
             return
 
-        # 2️⃣ Average-based hysteresis logic
+        # Average-based hysteresis logic
         if self._attr_hvac_mode == HVACMode.OFF and avg_needed_temp >= self.threshold_before_heat:
             _LOGGER.info(
                 f"Turning heat ON. Average needed temperature above threshold ({avg_needed_temp:.3f}°C >= {self.threshold_before_heat}°C).")
@@ -210,5 +233,19 @@ async def async_setup_platform(hass: HomeAssistant, config: dict[str, Any], asyn
     threshold_before_off: float = config[CONF_THRESHOLD_BEFORE_OFF]
     threshold_room_needs_heat: float = config[CONF_THRESHOLD_ROOM_NEEDS_HEAT]
 
-    async_add_entities(
-        [HeatPumpThermostat(hass, rooms, on_off_switch, threshold_before_heat, threshold_before_off, threshold_room_needs_heat)])
+    thermostat = HeatPumpThermostat(
+        hass, rooms, on_off_switch, threshold_before_heat, threshold_before_off, threshold_room_needs_heat)
+    async_add_entities([thermostat])
+
+    async def async_pause_service(call: ServiceCall) -> None:
+        duration = call.data.get("duration", 30)
+        thermostat.pause(duration)
+
+    hass.services.async_register(
+        DOMAIN,
+        "pause_heatpump",
+        async_pause_service,
+        schema=vol.Schema({
+            vol.Optional("duration", default=30): vol.Coerce(float)
+        })
+    )

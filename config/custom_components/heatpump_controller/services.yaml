@@ -1,0 +1,13 @@
+pause_heatpump:
+  name: Pause heatpump
+  description: Temporarily pause the heatpump.
+  icon: mdi:pause-circle
+  fields:
+    duration:
+      name: Duration (minutes)
+      description: Number of minutes to pause the heatpump.
+      required: true
+      example: 30
+      selector:
+        number:
+          unit_of_measurement: min
