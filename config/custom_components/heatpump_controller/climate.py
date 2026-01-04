@@ -9,6 +9,7 @@ from homeassistant.components.climate.const import (
 from homeassistant.const import UnitOfTemperature
 from homeassistant.core import HomeAssistant, State, ServiceCall
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.util import dt as dt_util
 import logging
 
@@ -23,6 +24,7 @@ class HeatPumpThermostat(ClimateEntity):
     _attr_temperature_unit = UnitOfTemperature.CELSIUS
     _attr_supported_features = ClimateEntityFeature.TARGET_TEMPERATURE
     _attr_hvac_modes = [HVACMode.HEAT, HVACMode.OFF]
+    _attr_should_poll = False  # Disable polling, use time-based updates
 
     def __init__(self, hass: HomeAssistant, rooms: list[RoomConfig], on_off_switch: str | None, threshold_before_heat: float, threshold_before_off: float, threshold_room_needs_heat: float) -> None:
         self._attr_hvac_mode = HVACMode.OFF
@@ -42,7 +44,17 @@ class HeatPumpThermostat(ClimateEntity):
         """Disable manual HVAC mode changes."""
         _LOGGER.info("Manual HVAC mode changes are disabled.")
 
-    async def async_update(self):
+    async def async_added_to_hass(self) -> None:
+        """Register periodic control loop."""
+        self.async_on_remove(
+            async_track_time_interval(
+                self.hass,
+                self._async_control_loop,
+                timedelta(seconds=30),
+            )
+        )
+
+    async def _async_control_loop(self, now: datetime) -> None:
         temps = self._read_room_temperatures()
         if temps:
             avg_temp, avg_target, avg_needed_temp = self._calculate_weighted_averages(
@@ -70,11 +82,14 @@ class HeatPumpThermostat(ClimateEntity):
         self.async_write_ha_state()
         await self._switch_heatpump()
 
-    def pause(self, duration_minutes: float) -> None:
+    async def pause(self, duration_minutes: float) -> None:
         """Pause the controller for a given number of minutes."""
         self._pause_until = dt_util.utcnow() + timedelta(minutes=duration_minutes)
         _LOGGER.info(
             f"Heatpump controller paused until {self._pause_until.isoformat()}")
+
+        # Force immediate update
+        await self._async_control_loop(dt_util.utcnow())
 
     def _is_paused(self) -> bool:
         """Return True if pause is active and not expired."""
@@ -239,7 +254,7 @@ async def async_setup_platform(hass: HomeAssistant, config: dict[str, Any], asyn
 
     async def async_pause_service(call: ServiceCall) -> None:
         duration = call.data.get("duration", 30)
-        thermostat.pause(duration)
+        await thermostat.pause(duration)
 
     hass.services.async_register(
         DOMAIN,
