@@ -13,7 +13,7 @@ from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.util import dt as dt_util
 import logging
 
-from .const import DOMAIN
+from .const import CONTROLLER, DOMAIN, ControlAlgorithm
 from .config import CONF_ON_OFF_SWITCH, CONF_THRESHOLD_BEFORE_HEAT, CONF_THRESHOLD_BEFORE_OFF, CONF_THRESHOLD_ROOM_NEEDS_HEAT, RoomConfig, CONF_ROOMS
 
 _LOGGER = logging.getLogger(__name__)
@@ -35,6 +35,7 @@ class HeatPumpThermostat(ClimateEntity):
         self.threshold_before_off = threshold_before_off
         self.threshold_room_needs_heat = threshold_room_needs_heat
         self._pause_until: datetime | None = None
+        self._algorithm: ControlAlgorithm = ControlAlgorithm.WEIGHTED_AVERAGE
 
     async def async_set_temperature(self, **kwargs: Any) -> None:
         """Disable manual temperature setting."""
@@ -54,7 +55,18 @@ class HeatPumpThermostat(ClimateEntity):
             )
         )
 
-    async def _async_control_loop(self, now: datetime) -> None:
+    @property
+    def algorithm(self) -> ControlAlgorithm:
+        """Return the currently active control algorithm."""
+        return self._algorithm
+
+    def set_algorithm(self, algorithm: ControlAlgorithm) -> None:
+        if self._algorithm != algorithm:
+            _LOGGER.info("Switching control algorithm to %s", algorithm)
+            self._algorithm = algorithm
+            self.hass.async_create_task(self._async_control_loop())
+
+    async def _async_control_loop(self, now: datetime = dt_util.utcnow()) -> None:
         temps = self._read_room_temperatures()
         if temps:
             avg_temp, avg_target, avg_needed_temp = self._calculate_weighted_averages(
@@ -68,6 +80,7 @@ class HeatPumpThermostat(ClimateEntity):
 
             # Update extra state attributes
             self._attr_extra_state_attributes = {
+                "algorithm": self.algorithm.value,
                 "current_temp_high_precision": round(avg_temp, 3),
                 "target_temp_high_precision": round(avg_target, 3),
                 "avg_needed_temp": round(avg_needed_temp, 3),
@@ -89,7 +102,7 @@ class HeatPumpThermostat(ClimateEntity):
             f"Heatpump controller paused until {self._pause_until.isoformat()}")
 
         # Force immediate update
-        await self._async_control_loop(dt_util.utcnow())
+        await self._async_control_loop()
 
     def _is_paused(self) -> bool:
         """Return True if pause is active and not expired."""
@@ -241,20 +254,39 @@ class HeatPumpThermostat(ClimateEntity):
             )
 
 
-async def async_setup_platform(hass: HomeAssistant, config: dict[str, Any], async_add_entities: AddEntitiesCallback, discovery_info: dict[str, Any] | None = None) -> None:
+def create_from_config(hass: HomeAssistant, config: dict[str, Any]) -> HeatPumpThermostat:
     rooms: list[RoomConfig] = config[CONF_ROOMS]
     on_off_switch: str | None = config.get(CONF_ON_OFF_SWITCH)
     threshold_before_heat: float = config[CONF_THRESHOLD_BEFORE_HEAT]
     threshold_before_off: float = config[CONF_THRESHOLD_BEFORE_OFF]
     threshold_room_needs_heat: float = config[CONF_THRESHOLD_ROOM_NEEDS_HEAT]
 
-    thermostat = HeatPumpThermostat(
-        hass, rooms, on_off_switch, threshold_before_heat, threshold_before_off, threshold_room_needs_heat)
-    async_add_entities([thermostat])
+    return HeatPumpThermostat(
+        hass,
+        rooms,
+        on_off_switch,
+        threshold_before_heat,
+        threshold_before_off,
+        threshold_room_needs_heat,
+    )
+
+
+async def async_setup_platform(hass: HomeAssistant, config: dict[str, Any], async_add_entities: AddEntitiesCallback, discovery_info: dict[str, Any] | None = None) -> None:
+    # rooms: list[RoomConfig] = config[CONF_ROOMS]
+    # on_off_switch: str | None = config.get(CONF_ON_OFF_SWITCH)
+    # threshold_before_heat: float = config[CONF_THRESHOLD_BEFORE_HEAT]
+    # threshold_before_off: float = config[CONF_THRESHOLD_BEFORE_OFF]
+    # threshold_room_needs_heat: float = config[CONF_THRESHOLD_ROOM_NEEDS_HEAT]
+
+    # controller = HeatPumpThermostat(
+    #     hass, rooms, on_off_switch, threshold_before_heat, threshold_before_off, threshold_room_needs_heat)
+
+    controller: HeatPumpThermostat = hass.data[DOMAIN][CONTROLLER]
+    async_add_entities([controller])
 
     async def async_pause_service(call: ServiceCall) -> None:
         duration = call.data.get("duration", 30)
-        await thermostat.pause(duration)
+        await controller.pause(duration)
 
     hass.services.async_register(
         DOMAIN,
