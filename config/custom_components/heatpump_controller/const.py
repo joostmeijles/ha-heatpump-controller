@@ -3,6 +3,8 @@ from enum import StrEnum
 DOMAIN = "heatpump_controller"
 CONTROLLER = "controller"
 
+HEATPUMP_CONTROLLER_FRIENDLY_NAME = "Heatpump Controller"
+
 
 class ControlAlgorithm(StrEnum):
     MANUAL = "manual"

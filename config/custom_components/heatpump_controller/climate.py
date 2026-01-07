@@ -6,6 +6,8 @@ from homeassistant.components.climate.const import (
     HVACMode,
     ClimateEntityFeature,
 )
+from homeassistant.components.sensor import SensorEntity
+from homeassistant.components.binary_sensor import BinarySensorEntity
 from homeassistant.const import UnitOfTemperature
 from homeassistant.core import HomeAssistant, State, ServiceCall
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -13,14 +15,15 @@ from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.util import dt as dt_util
 import logging
 
-from .const import CONTROLLER, DOMAIN, ControlAlgorithm
+from .const import CONTROLLER, DOMAIN, HEATPUMP_CONTROLLER_FRIENDLY_NAME, ControlAlgorithm
 from .config import CONF_ON_OFF_SWITCH, CONF_THRESHOLD_BEFORE_HEAT, CONF_THRESHOLD_BEFORE_OFF, CONF_THRESHOLD_ROOM_NEEDS_HEAT, RoomConfig, CONF_ROOMS
 
 _LOGGER = logging.getLogger(__name__)
 
 
 class HeatPumpThermostat(ClimateEntity):
-    _attr_name = "Heat Pump Controller"
+    _attr_name = HEATPUMP_CONTROLLER_FRIENDLY_NAME
+    _attr_unique_id = DOMAIN
     _attr_temperature_unit = UnitOfTemperature.CELSIUS
     _attr_supported_features = ClimateEntityFeature.TARGET_TEMPERATURE
     _attr_hvac_modes = [HVACMode.HEAT, HVACMode.OFF]
@@ -35,7 +38,8 @@ class HeatPumpThermostat(ClimateEntity):
         self.threshold_before_off = threshold_before_off
         self.threshold_room_needs_heat = threshold_room_needs_heat
         self._pause_until: datetime | None = None
-        self._algorithm: ControlAlgorithm = ControlAlgorithm.WEIGHTED_AVERAGE
+        self._algorithm: ControlAlgorithm = ControlAlgorithm.MANUAL
+        self._sensors: list[SensorEntity | BinarySensorEntity] = []
 
     async def async_set_temperature(self, **kwargs: Any) -> None:
         """Disable manual temperature setting."""
@@ -60,6 +64,11 @@ class HeatPumpThermostat(ClimateEntity):
         """Return the currently active control algorithm."""
         return self._algorithm
 
+    def add_sensor(self, sensor: SensorEntity | BinarySensorEntity) -> None:
+        _LOGGER.debug("Registering sensor %s with controller",
+                      sensor.entity_id)
+        self._sensors.append(sensor)
+
     def set_algorithm(self, algorithm: ControlAlgorithm) -> None:
         if self._algorithm != algorithm:
             _LOGGER.info("Switching control algorithm to %s", algorithm)
@@ -71,28 +80,38 @@ class HeatPumpThermostat(ClimateEntity):
         if temps:
             avg_temp, avg_target, avg_needed_temp = self._calculate_weighted_averages(
                 temps)
-            any_room_needs_heat = self._any_room_needs_heat(temps)
+            self.any_room_needs_heat = self._any_room_needs_heat(temps)
 
             # Update entity state
             self._attr_current_temperature = avg_temp
             self._attr_target_temperature = avg_target
-            self._update_hvac_mode(avg_needed_temp, any_room_needs_heat)
+            self._update_hvac_mode(avg_needed_temp, self.any_room_needs_heat)
+
+            self.current_temp_high_precision = round(avg_temp, 3)
+            self.target_temp_high_precision = round(avg_target, 3)
+            self.avg_needed_temp = round(avg_needed_temp, 3)
+            self.num_rooms_below_target = self._calculate_num_rooms_below_target(
+                temps)
 
             # Update extra state attributes
             self._attr_extra_state_attributes = {
                 "algorithm": self.algorithm.value,
-                "current_temp_high_precision": round(avg_temp, 3),
-                "target_temp_high_precision": round(avg_target, 3),
-                "avg_needed_temp": round(avg_needed_temp, 3),
+                "current_temp_high_precision": self.current_temp_high_precision,
+                "target_temp_high_precision": self.target_temp_high_precision,
+                "avg_needed_temp": self.avg_needed_temp,
                 "threshold_before_heat": self.threshold_before_heat,
                 "threshold_before_off": self.threshold_before_off,
                 "threshold_room_needs_heat": self.threshold_room_needs_heat,
-                "num_rooms_below_target": self._calculate_num_rooms_below_target(temps),
-                "any_room_needs_heat": any_room_needs_heat,
-                "paused": self._is_paused(),
+                "num_rooms_below_target": self.num_rooms_below_target,
+                "any_room_needs_heat": self.any_room_needs_heat,
+                "paused": self.is_paused,
                 "pause_until": self._pause_until.isoformat() if self._pause_until else None,
             }
         self.async_write_ha_state()
+
+        for sensor in self._sensors:
+            _LOGGER.debug("Updating sensor %s", sensor.entity_id)
+            sensor.async_write_ha_state()
 
         if self.algorithm == ControlAlgorithm.MANUAL:
             _LOGGER.info(
@@ -109,7 +128,8 @@ class HeatPumpThermostat(ClimateEntity):
         # Force immediate update
         await self._async_control_loop()
 
-    def _is_paused(self) -> bool:
+    @property
+    def is_paused(self) -> bool:
         """Return True if pause is active and not expired."""
         return self._pause_until is not None and dt_util.utcnow() < self._pause_until
 
@@ -197,7 +217,7 @@ class HeatPumpThermostat(ClimateEntity):
     def _update_hvac_mode(self, avg_needed_temp: float, any_room_needs_heat: bool) -> None:
         """Decide HVAC mode based on weighted average and thresholds."""
         # Check if paused
-        if self._is_paused():
+        if self.is_paused:
             if self._attr_hvac_mode != HVACMode.OFF:
                 _LOGGER.info("Controller paused → turning heat OFF")
                 self._attr_hvac_mode = HVACMode.OFF
@@ -277,15 +297,6 @@ def create_from_config(hass: HomeAssistant, config: dict[str, Any]) -> HeatPumpT
 
 
 async def async_setup_platform(hass: HomeAssistant, config: dict[str, Any], async_add_entities: AddEntitiesCallback, discovery_info: dict[str, Any] | None = None) -> None:
-    # rooms: list[RoomConfig] = config[CONF_ROOMS]
-    # on_off_switch: str | None = config.get(CONF_ON_OFF_SWITCH)
-    # threshold_before_heat: float = config[CONF_THRESHOLD_BEFORE_HEAT]
-    # threshold_before_off: float = config[CONF_THRESHOLD_BEFORE_OFF]
-    # threshold_room_needs_heat: float = config[CONF_THRESHOLD_ROOM_NEEDS_HEAT]
-
-    # controller = HeatPumpThermostat(
-    #     hass, rooms, on_off_switch, threshold_before_heat, threshold_before_off, threshold_room_needs_heat)
-
     controller: HeatPumpThermostat = hass.data[DOMAIN][CONTROLLER]
     async_add_entities([controller])
 

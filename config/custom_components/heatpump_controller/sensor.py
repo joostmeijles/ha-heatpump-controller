@@ -1,0 +1,108 @@
+from typing import Any
+from homeassistant.core import HomeAssistant
+from homeassistant.components.sensor import SensorEntity, SensorDeviceClass, SensorStateClass
+from homeassistant.const import UnitOfTemperature
+from homeassistant.helpers.device_registry import DeviceInfo
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from propcache import cached_property
+import logging
+
+from .climate import HeatPumpThermostat
+from .const import DOMAIN, CONTROLLER
+
+TEMPERATURE_SENSORS = {
+    "current_temp_high_precision": "Average Temp",
+    "target_temp_high_precision": "Avg Target Temp",
+    "avg_needed_temp": "Avg Needed Temp",
+    "threshold_before_heat": "Threshold Before Heat",
+    "threshold_before_off": "Threshold Before Off",
+    "threshold_room_needs_heat": "Threshold Room Needs Heat",
+}
+
+_LOGGER = logging.getLogger(__name__)
+
+
+class TemperatureSensor(SensorEntity):
+    _attr_device_class = SensorDeviceClass.TEMPERATURE
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_suggested_display_precision = 3
+
+    def __init__(self, controller: HeatPumpThermostat, attr: str, name: str) -> None:
+        self.controller = controller
+        self.attr = attr
+        self._attr_name = name
+        self._attr_unique_id = f"{controller.unique_id}_{attr}"
+
+        # Register self with controller for updates
+        controller.add_sensor(self)
+
+    @property
+    def available(self):  # type: ignore
+        """Return True if the sensor has a valid value."""
+        return getattr(self.controller, self.attr, None) is not None
+
+    @cached_property
+    def native_unit_of_measurement(self):
+        return UnitOfTemperature.CELSIUS
+
+    @property
+    def native_value(self):  # type: ignore
+        val = getattr(self.controller, self.attr, None)
+        return val
+
+    @cached_property
+    def device_info(self) -> DeviceInfo:
+        return DeviceInfo(
+            identifiers={(DOMAIN, self.controller.unique_id)},  # type: ignore
+            name=f"{self.controller.name}"
+        )
+
+
+class RoomsBelowTargetSensor(SensorEntity):
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_suggested_display_precision = 0
+    _attr_native_unit_of_measurement = "rooms"
+
+    def __init__(self, hass: HomeAssistant, controller: HeatPumpThermostat, attr: str, name: str) -> None:
+        self.controller = controller
+        self.attr = attr
+        self._attr_name = name
+        self._attr_unique_id = f"{controller.unique_id}_{attr}"
+
+        # Register self with controller for updates
+        controller.add_sensor(self)
+
+    @property
+    def available(self):  # type: ignore
+        """Return True if the sensor has a valid value."""
+        return getattr(self.controller, self.attr, None) is not None
+
+    @property
+    def native_value(self):  # type: ignore
+        val = getattr(self.controller, self.attr, None)
+        return val
+
+    @cached_property
+    def device_info(self) -> DeviceInfo:
+        return DeviceInfo(
+            identifiers={(DOMAIN, self.controller.unique_id)},  # type: ignore
+            name=f"{self.controller.name}"
+        )
+
+
+async def async_setup_platform(
+        hass: HomeAssistant,
+        config: dict[str, Any],
+        async_add_entities: AddEntitiesCallback,
+        discovery_info: dict[str, Any] | None = None):
+    controller = hass.data[DOMAIN][CONTROLLER]
+
+    async_add_entities([
+        RoomsBelowTargetSensor(
+            hass, controller, "num_rooms_below_target", "Rooms Below Target")
+    ])
+
+    async_add_entities([
+        TemperatureSensor(controller, attr, name)
+        for attr, name in TEMPERATURE_SENSORS.items()
+    ])

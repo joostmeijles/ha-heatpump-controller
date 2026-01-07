@@ -32,4 +32,24 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         )
     )
 
+    hass.async_create_task(
+        async_load_platform(
+            hass,
+            Platform.SENSOR,
+            DOMAIN,
+            {CONTROLLER: controller},
+            config
+        )
+    )
+
+    hass.async_create_task(
+        async_load_platform(
+            hass,
+            Platform.BINARY_SENSOR,
+            DOMAIN,
+            {CONTROLLER: controller},
+            config
+        )
+    )
+
     return True

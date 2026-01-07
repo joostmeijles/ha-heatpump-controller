@@ -2,6 +2,12 @@
   "domain": "heatpump_controller",
   "name": "Heatpump Controller",
   "version": "0.1.0",
+  "platforms": [
+    "climate",
+    "select",
+    "sensor",
+    "binary_sensor"
+  ],
   "requirements": [],
   "codeowners": [],
   "dependencies": []
