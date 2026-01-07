@@ -9,7 +9,7 @@ cards:
   - type: entities
     entities:
       - climate.heatpump_controller
-      - select.heatpump_control_algorithm
+      - select.algorithm
       - binary_sensor.any_room_below_threshold
       - sensor.rooms_below_target
       - sensor.heatpump_controller_average_temp
