@@ -1,7 +1,7 @@
 # Heatpump controller
 
-## Markdown card
-Add the Heatpump controller as Markdown card:
+## Card
+Add the Heatpump controller as card:
 
 ```
 type: vertical-stack
