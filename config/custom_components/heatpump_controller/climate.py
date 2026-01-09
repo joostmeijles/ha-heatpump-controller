@@ -148,15 +148,17 @@ class HeatPumpThermostat(ClimateEntity):
                 matches = True
             
             if matches:
-                self.active_outdoor_mapping = mapping
-                _LOGGER.info(
-                    "Applying outdoor threshold override: outdoor_temp=%.2f°C, mapping=%s. "
-                    "Effective thresholds: before_heat=%.6f, before_off=%.6f",
-                    outdoor_temp,
-                    mapping,
-                    mapping.get(CONF_THRESHOLD_BEFORE_HEAT),
-                    mapping.get(CONF_THRESHOLD_BEFORE_OFF)
-                )
+                # Only update and log when the active mapping actually changes
+                if mapping != self.active_outdoor_mapping:
+                    self.active_outdoor_mapping = mapping
+                    _LOGGER.info(
+                        "Applying outdoor threshold override: outdoor_temp=%.2f°C, mapping=%s. "
+                        "Effective thresholds: before_heat=%.6f, before_off=%.6f",
+                        outdoor_temp,
+                        mapping,
+                        mapping[CONF_THRESHOLD_BEFORE_HEAT],
+                        mapping[CONF_THRESHOLD_BEFORE_OFF]
+                    )
                 return
         
         # No mapping matched
