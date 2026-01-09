@@ -16,6 +16,22 @@ heatpump_controller:
   - threshold_before_heat: 0.07
   - threshold_before_off: 0.007
   - threshold_room_needs_heat: 0.3
+  - outdoor_sensor: sensor.outdoor_temperature
+  - outdoor_thresholds:
+      # Cold weather (< -5°C): more aggressive heating
+      - min_temp: -100
+        max_temp: -5
+        threshold_before_heat: 0.05
+        threshold_before_off: 0.005
+      # Moderate weather (-5°C to 10°C): standard thresholds
+      - min_temp: -5
+        max_temp: 10
+        threshold_before_heat: 0.07
+        threshold_before_off: 0.007
+      # Mild weather (>= 10°C): less aggressive heating
+      - min_temp: 10
+        threshold_before_heat: 0.10
+        threshold_before_off: 0.01
   - rooms:
       - sensor: climate.living_room_thermostat
         weight: 1.5
