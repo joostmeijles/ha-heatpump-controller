@@ -8,6 +8,11 @@ config/*.db
 config/*.db-shm
 config/*.db-wal
 
+# Python bytecode
+__pycache__/
+*.pyc
+*.pyo
+
 # OS / editor
 .DS_Store
 .idea/
