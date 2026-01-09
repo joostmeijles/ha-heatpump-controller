@@ -24,28 +24,28 @@ You can configure the controller to automatically adjust heating thresholds base
 
 ```yaml
 heatpump_controller:
-  - on_off_switch: switch.heatpump_power
-  - threshold_before_heat: 0.07
-  - threshold_before_off: 0.007
-  - threshold_room_needs_heat: 0.3
-  - outdoor_sensor: sensor.outdoor_temperature
-  - outdoor_thresholds:
-      - min_temp: -10
-        max_temp: 5
-        threshold_before_heat: 0.15
-        threshold_before_off: 0.015
-      - min_temp: 5
-        max_temp: 15
-        threshold_before_heat: 0.07
-        threshold_before_off: 0.007
-      - min_temp: 15
-        threshold_before_heat: 0.03
-        threshold_before_off: 0.003
-  - rooms:
-      - sensor: climate.living_room_thermostat
-        weight: 1.5
-      - sensor: climate.bedroom_thermostat
-        weight: 1.0
+  on_off_switch: switch.heatpump_power
+  threshold_before_heat: 0.07
+  threshold_before_off: 0.007
+  threshold_room_needs_heat: 0.3
+  outdoor_sensor: sensor.outdoor_temperature
+  outdoor_thresholds:
+    - min_temp: -10
+      max_temp: 5
+      threshold_before_heat: 0.03
+      threshold_before_off: 0.003
+    - min_temp: 5
+      max_temp: 15
+      threshold_before_heat: 0.07
+      threshold_before_off: 0.007
+    - min_temp: 15
+      threshold_before_heat: 0.15
+      threshold_before_off: 0.015
+  rooms:
+    - sensor: climate.living_room_thermostat
+      weight: 1.5
+    - sensor: climate.bedroom_thermostat
+      weight: 1.0
 ```
 
 **Outdoor Threshold Configuration:**
@@ -110,13 +110,22 @@ cards:
       - sensor.heatpump_controller_threshold_before_heat
       - sensor.heatpump_controller_threshold_before_off
       - sensor.heatpump_controller_threshold_room_needs_heat
-      - sensor.heatpump_controller_outdoor_temp
-      - sensor.heatpump_controller_active_outdoor_mapping
+      - sensor.outdoor_temperature
       - binary_sensor.paused
       - type: attribute
         entity: climate.heatpump_controller
         attribute: pause_until
         name: Paused until
+  - type: markdown
+    content: >
+      ### Active Outdoor Mapping
+
+      ```json
+
+      {{ states('sensor.active_outdoor_mapping') | from_json | tojson(indent=2)
+      }}
+
+      ```
 ```
 
 ## Sensors
