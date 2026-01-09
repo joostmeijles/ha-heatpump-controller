@@ -5,6 +5,7 @@ from homeassistant.const import UnitOfTemperature
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from propcache import cached_property
+import json
 import logging
 
 from .climate import HeatPumpThermostat
@@ -17,6 +18,7 @@ TEMPERATURE_SENSORS = {
     "threshold_before_heat": "Threshold Before Heat",
     "threshold_before_off": "Threshold Before Off",
     "threshold_room_needs_heat": "Threshold Room Needs Heat",
+    "outdoor_temp": "Outdoor Temperature",
 }
 
 _LOGGER = logging.getLogger(__name__)
@@ -90,6 +92,38 @@ class RoomsBelowTargetSensor(SensorEntity):
         )
 
 
+class MappingSensor(SensorEntity):
+    """Sensor that exposes the active outdoor mapping as JSON."""
+
+    def __init__(self, controller: HeatPumpThermostat) -> None:
+        self.controller = controller
+        self._attr_name = "Active Outdoor Mapping"
+        self._attr_unique_id = f"{controller.unique_id}_active_outdoor_mapping"
+
+        # Register self with controller for updates
+        controller.add_sensor(self)
+
+    @property
+    def available(self):  # type: ignore
+        """Return True always - sensor is available even when value is None."""
+        return True
+
+    @property
+    def native_value(self):  # type: ignore
+        """Return compact JSON string of active mapping or None."""
+        if self.controller.active_outdoor_mapping:
+            # Return compact JSON with sorted keys
+            return json.dumps(self.controller.active_outdoor_mapping, sort_keys=True, separators=(',', ':'))
+        return None
+
+    @cached_property
+    def device_info(self) -> DeviceInfo:
+        return DeviceInfo(
+            identifiers={(DOMAIN, self.controller.unique_id)},  # type: ignore
+            name=f"{self.controller.name}"
+        )
+
+
 async def async_setup_platform(
         hass: HomeAssistant,
         config: dict[str, Any],
@@ -105,4 +139,8 @@ async def async_setup_platform(
     async_add_entities([
         TemperatureSensor(controller, attr, name)
         for attr, name in TEMPERATURE_SENSORS.items()
+    ])
+
+    async_add_entities([
+        MappingSensor(controller)
     ])
