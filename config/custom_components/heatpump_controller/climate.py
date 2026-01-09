@@ -142,13 +142,13 @@ class HeatPumpThermostat(ClimateEntity):
                         "No outdoor threshold mapping matches outdoor_temp=%.1f°C. Using base thresholds.",
                         self.outdoor_temp
                     )
-                self._previous_outdoor_mapping = self.active_outdoor_mapping
+                self._previous_outdoor_mapping = self.active_outdoor_mapping.copy() if self.active_outdoor_mapping else None
         else:
             # Outdoor sensor not available, use base thresholds
             if self.active_outdoor_mapping is not None:
                 _LOGGER.debug("Outdoor sensor not available, reverting to base thresholds")
-            self.active_outdoor_mapping = None
-            self._previous_outdoor_mapping = None
+                self.active_outdoor_mapping = None
+                self._previous_outdoor_mapping = None
         
         temps = self._read_room_temperatures()
         if temps:

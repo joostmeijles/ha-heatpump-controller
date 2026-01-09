@@ -111,7 +111,12 @@ class MappingSensor(SensorEntity):
 
     @property
     def native_value(self):  # type: ignore
-        """Return the mapping as a formatted JSON string or None."""
+        """Return the mapping as a formatted JSON string or None.
+        
+        Note: JSON serialization is performed on each access, but this is
+        acceptable because the mapping is a small dictionary (4 keys) and
+        the sensor is only updated every 30 seconds via the control loop.
+        """
         val = getattr(self.controller, self.attr, None)
         if val is None:
             return None
