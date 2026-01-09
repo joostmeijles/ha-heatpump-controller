@@ -91,6 +91,9 @@ class HeatPumpThermostat(ClimateEntity):
             self.hass.async_create_task(self._async_control_loop())
 
     async def _async_control_loop(self, now: datetime = dt_util.utcnow()) -> None:
+        # Update outdoor temperature and matching threshold override
+        self._match_outdoor_threshold()
+        
         temps = self._read_room_temperatures()
         if temps:
             avg_temp, avg_target, avg_needed_temp = self._calculate_weighted_averages(
@@ -151,7 +154,6 @@ class HeatPumpThermostat(ClimateEntity):
     @property
     def threshold_before_heat(self) -> float:
         """Return effective threshold_before_heat (with outdoor override if applicable)."""
-        self._match_outdoor_threshold()
         if self.active_outdoor_mapping and CONF_THRESHOLD_BEFORE_HEAT in self.active_outdoor_mapping:
             return self.active_outdoor_mapping[CONF_THRESHOLD_BEFORE_HEAT]
         return self._base_threshold_before_heat
@@ -159,7 +161,6 @@ class HeatPumpThermostat(ClimateEntity):
     @property
     def threshold_before_off(self) -> float:
         """Return effective threshold_before_off (with outdoor override if applicable)."""
-        self._match_outdoor_threshold()
         if self.active_outdoor_mapping and CONF_THRESHOLD_BEFORE_OFF in self.active_outdoor_mapping:
             return self.active_outdoor_mapping[CONF_THRESHOLD_BEFORE_OFF]
         return self._base_threshold_before_off
