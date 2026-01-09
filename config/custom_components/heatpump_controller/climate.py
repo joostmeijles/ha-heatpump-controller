@@ -315,7 +315,7 @@ class HeatPumpThermostat(ClimateEntity):
 
         if self._attr_hvac_mode == HVACMode.HEAT and avg_needed_temp <= self.threshold_before_off:
             _LOGGER.info(
-                f"Turning heat OFF.Average needed temperature below threshold ({avg_needed_temp:.3f}°C <= {self.threshold_before_off}°C).")
+                f"Turning heat OFF. Average needed temperature below threshold ({avg_needed_temp:.3f}°C <= {self.threshold_before_off}°C).")
             self._attr_hvac_mode = HVACMode.OFF
             return
 
