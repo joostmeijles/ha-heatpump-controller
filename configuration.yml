@@ -21,4 +21,19 @@ heatpump_controller:
         weight: 1.5
       - sensor: climate.bedroom_thermostat
         weight: 1.0
+  # Optional: Override thresholds based on outdoor temperature
+  # - outdoor_sensor: sensor.outdoor_temperature
+  # - outdoor_thresholds:
+  #     - min_temp: -10
+  #       max_temp: 0
+  #       threshold_before_heat: 0.15
+  #       threshold_before_off: 0.03
+  #     - min_temp: 0
+  #       max_temp: 10
+  #       threshold_before_heat: 0.09
+  #       threshold_before_off: 0.015
+  #     - min_temp: 10
+  #       max_temp: 20
+  #       threshold_before_heat: 0.05
+  #       threshold_before_off: 0.01
 
