@@ -16,7 +16,7 @@ from homeassistant.util import dt as dt_util
 import logging
 
 from .const import CONTROLLER, DOMAIN, HEATPUMP_CONTROLLER_FRIENDLY_NAME, ControlAlgorithm
-from .config import CONF_ON_OFF_SWITCH, CONF_THRESHOLD_BEFORE_HEAT, CONF_THRESHOLD_BEFORE_OFF, CONF_THRESHOLD_ROOM_NEEDS_HEAT, RoomConfig, CONF_ROOMS
+from .config import CONF_ON_OFF_SWITCH, CONF_THRESHOLD_BEFORE_HEAT, CONF_THRESHOLD_BEFORE_OFF, CONF_THRESHOLD_ROOM_NEEDS_HEAT, RoomConfig, CONF_ROOMS, CONF_OUTDOOR_SENSOR, CONF_OUTDOOR_THRESHOLDS
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -29,14 +29,18 @@ class HeatPumpThermostat(ClimateEntity):
     _attr_hvac_modes = [HVACMode.HEAT, HVACMode.OFF]
     _attr_should_poll = False  # Disable polling, use time-based updates
 
-    def __init__(self, hass: HomeAssistant, rooms: list[RoomConfig], on_off_switch: str | None, threshold_before_heat: float, threshold_before_off: float, threshold_room_needs_heat: float) -> None:
+    def __init__(self, hass: HomeAssistant, rooms: list[RoomConfig], on_off_switch: str | None, threshold_before_heat: float, threshold_before_off: float, threshold_room_needs_heat: float, outdoor_sensor: str | None = None, outdoor_thresholds: list[dict[str, Any]] | None = None) -> None:
         self._attr_hvac_mode = HVACMode.OFF
         self.hass = hass
         self.rooms = rooms
         self.on_off_switch = on_off_switch
-        self.threshold_before_heat = threshold_before_heat
-        self.threshold_before_off = threshold_before_off
+        self._base_threshold_before_heat = threshold_before_heat
+        self._base_threshold_before_off = threshold_before_off
         self.threshold_room_needs_heat = threshold_room_needs_heat
+        self.outdoor_sensor = outdoor_sensor
+        self.outdoor_thresholds = outdoor_thresholds or []
+        self.outdoor_temp: float | None = None
+        self.active_outdoor_mapping: dict | None = None
         self._pause_until: datetime | None = None
         self._algorithm: ControlAlgorithm = ControlAlgorithm.MANUAL
         self._sensors: list[SensorEntity | BinarySensorEntity] = []
@@ -64,6 +68,26 @@ class HeatPumpThermostat(ClimateEntity):
         """Return the currently active control algorithm."""
         return self._algorithm
 
+    @property
+    def threshold_before_heat(self) -> float:
+        """Return effective threshold_before_heat (from active mapping or base)."""
+        if self.active_outdoor_mapping:
+            return self.active_outdoor_mapping.get(
+                CONF_THRESHOLD_BEFORE_HEAT,
+                self._base_threshold_before_heat,
+            )
+        return self._base_threshold_before_heat
+
+    @property
+    def threshold_before_off(self) -> float:
+        """Return effective threshold_before_off (from active mapping or base)."""
+        if self.active_outdoor_mapping:
+            return self.active_outdoor_mapping.get(
+                CONF_THRESHOLD_BEFORE_OFF,
+                self._base_threshold_before_off,
+            )
+        return self._base_threshold_before_off
+
     def add_sensor(self, sensor: SensorEntity | BinarySensorEntity) -> None:
         _LOGGER.debug("Registering sensor %s with controller",
                       sensor.entity_id)
@@ -75,7 +99,83 @@ class HeatPumpThermostat(ClimateEntity):
             self._algorithm = algorithm
             self.hass.async_create_task(self._async_control_loop())
 
+    def _get_outdoor_temperature(self) -> float | None:
+        """Read outdoor temperature from sensor. Returns None if unavailable."""
+        if not self.outdoor_sensor:
+            _LOGGER.debug("Outdoor sensor not configured")
+            return None
+
+        state: State | None = self.hass.states.get(self.outdoor_sensor)
+        if not state:
+            _LOGGER.debug("Outdoor sensor %s not found", self.outdoor_sensor)
+            return None
+
+        try:
+            temp = float(state.state)
+            self.outdoor_temp = temp
+            return temp
+        except (ValueError, TypeError):
+            _LOGGER.debug("Outdoor sensor %s has non-numeric state: %s", 
+                         self.outdoor_sensor, state.state)
+            self.outdoor_temp = None
+            return None
+
+    def _match_outdoor_threshold(self) -> None:
+        """Match outdoor temperature to threshold mapping and apply override."""
+        outdoor_temp = self._get_outdoor_temperature()
+        
+        if outdoor_temp is None:
+            if self.active_outdoor_mapping:
+                _LOGGER.debug("Clearing active outdoor mapping (outdoor temp unavailable)")
+                self.active_outdoor_mapping = None
+            return
+
+        # Evaluate mappings in order, first match wins
+        for mapping in self.outdoor_thresholds:
+            min_temp = mapping.get("min_temp")
+            max_temp = mapping.get("max_temp")
+            
+            # Determine if this mapping matches
+            matches = False
+            if min_temp is not None and max_temp is not None:
+                matches = min_temp <= outdoor_temp < max_temp
+            elif min_temp is not None:
+                matches = outdoor_temp >= min_temp
+            elif max_temp is not None:
+                matches = outdoor_temp < max_temp
+            else:
+                # Fallback mapping (no min/max specified)
+                matches = True
+            
+            if matches:
+                # Only update and log when the active mapping actually changes
+                if mapping != self.active_outdoor_mapping:
+                    self.active_outdoor_mapping = mapping
+                    _LOGGER.info(
+                        "Applying outdoor threshold override: outdoor_temp=%.2f°C, mapping=%s. "
+                        "Effective thresholds: before_heat=%.6f, before_off=%.6f",
+                        outdoor_temp,
+                        mapping,
+                        mapping[CONF_THRESHOLD_BEFORE_HEAT],
+                        mapping[CONF_THRESHOLD_BEFORE_OFF]
+                    )
+                return
+        
+        # No mapping matched
+        if self.active_outdoor_mapping:
+            _LOGGER.debug("Clearing active outdoor mapping (no mapping matched)")
+            self.active_outdoor_mapping = None
+
     async def _async_control_loop(self, now: datetime = dt_util.utcnow()) -> None:
+        # Match outdoor temperature to threshold mapping only if outdoor temp algorithm is active
+        if self.algorithm == ControlAlgorithm.WEIGHTED_AVERAGE_OUTDOOR_TEMP:
+            self._match_outdoor_threshold()
+        else:
+            # Clear active mapping if not using outdoor temp algorithm
+            if self.active_outdoor_mapping:
+                _LOGGER.debug("Clearing active outdoor mapping (algorithm changed)")
+                self.active_outdoor_mapping = None
+        
         temps = self._read_room_temperatures()
         if temps:
             avg_temp, avg_target, avg_needed_temp = self._calculate_weighted_averages(
@@ -285,6 +385,8 @@ def create_from_config(hass: HomeAssistant, config: dict[str, Any]) -> HeatPumpT
     threshold_before_heat: float = config[CONF_THRESHOLD_BEFORE_HEAT]
     threshold_before_off: float = config[CONF_THRESHOLD_BEFORE_OFF]
     threshold_room_needs_heat: float = config[CONF_THRESHOLD_ROOM_NEEDS_HEAT]
+    outdoor_sensor: str | None = config.get(CONF_OUTDOOR_SENSOR)
+    outdoor_thresholds: list[dict[str, Any]] | None = config.get(CONF_OUTDOOR_THRESHOLDS)
 
     return HeatPumpThermostat(
         hass,
@@ -293,6 +395,8 @@ def create_from_config(hass: HomeAssistant, config: dict[str, Any]) -> HeatPumpT
         threshold_before_heat,
         threshold_before_off,
         threshold_room_needs_heat,
+        outdoor_sensor,
+        outdoor_thresholds,
     )
 
 

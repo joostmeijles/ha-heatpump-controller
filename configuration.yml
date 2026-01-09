@@ -16,6 +16,19 @@ heatpump_controller:
   - threshold_before_heat: 0.07
   - threshold_before_off: 0.007
   - threshold_room_needs_heat: 0.3
+  - outdoor_sensor: sensor.outdoor_temperature
+  - outdoor_thresholds:
+      - min_temp: -10
+        max_temp: 5
+        threshold_before_heat: 0.15
+        threshold_before_off: 0.015
+      - min_temp: 5
+        max_temp: 15
+        threshold_before_heat: 0.07
+        threshold_before_off: 0.007
+      - min_temp: 15
+        threshold_before_heat: 0.03
+        threshold_before_off: 0.003
   - rooms:
       - sensor: climate.living_room_thermostat
         weight: 1.5
