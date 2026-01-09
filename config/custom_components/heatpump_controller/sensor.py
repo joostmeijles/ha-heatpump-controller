@@ -6,6 +6,7 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from propcache import cached_property
 import logging
+import json
 
 from .climate import HeatPumpThermostat
 from .const import DOMAIN, CONTROLLER
@@ -110,11 +111,12 @@ class MappingSensor(SensorEntity):
 
     @property
     def native_value(self):  # type: ignore
-        """Return the mapping as a string or None."""
+        """Return the mapping as a formatted JSON string or None."""
         val = getattr(self.controller, self.attr, None)
         if val is None:
             return None
-        return str(val)
+        # Format as readable JSON string
+        return json.dumps(val, separators=(', ', ': '))
 
     @cached_property
     def device_info(self) -> DeviceInfo:

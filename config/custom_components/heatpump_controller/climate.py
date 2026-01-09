@@ -41,6 +41,7 @@ class HeatPumpThermostat(ClimateEntity):
         self.outdoor_thresholds = outdoor_thresholds or []
         self.outdoor_temp: float | None = None
         self.active_outdoor_mapping: dict[str, float] | None = None
+        self._previous_outdoor_mapping: dict[str, float] | None = None
         self._pause_until: datetime | None = None
         self._algorithm: ControlAlgorithm = ControlAlgorithm.MANUAL
         self._sensors: list[SensorEntity | BinarySensorEntity] = []
@@ -125,21 +126,29 @@ class HeatPumpThermostat(ClimateEntity):
         self.outdoor_temp = self._get_outdoor_temperature()
         if self.outdoor_temp is not None:
             self.active_outdoor_mapping = self._match_outdoor_threshold(self.outdoor_temp)
-            if self.active_outdoor_mapping is not None:
-                _LOGGER.info(
-                    "Applying outdoor threshold override: outdoor_temp=%.1f°C, "
-                    "mapping=%s. Effective thresholds: before_heat=%.3f, before_off=%.3f",
-                    self.outdoor_temp,
-                    self.active_outdoor_mapping,
-                    self.threshold_before_heat,
-                    self.threshold_before_off
-                )
-            else:
-                # No mapping matched, use base thresholds
-                self.active_outdoor_mapping = None
+            # Only log when mapping changes
+            if self.active_outdoor_mapping != self._previous_outdoor_mapping:
+                if self.active_outdoor_mapping is not None:
+                    _LOGGER.info(
+                        "Applying outdoor threshold override: outdoor_temp=%.1f°C, "
+                        "mapping=%s. Effective thresholds: before_heat=%.3f, before_off=%.3f",
+                        self.outdoor_temp,
+                        self.active_outdoor_mapping,
+                        self.threshold_before_heat,
+                        self.threshold_before_off
+                    )
+                else:
+                    _LOGGER.info(
+                        "No outdoor threshold mapping matches outdoor_temp=%.1f°C. Using base thresholds.",
+                        self.outdoor_temp
+                    )
+                self._previous_outdoor_mapping = self.active_outdoor_mapping
         else:
             # Outdoor sensor not available, use base thresholds
+            if self.active_outdoor_mapping is not None:
+                _LOGGER.debug("Outdoor sensor not available, reverting to base thresholds")
             self.active_outdoor_mapping = None
+            self._previous_outdoor_mapping = None
         
         temps = self._read_room_temperatures()
         if temps:
