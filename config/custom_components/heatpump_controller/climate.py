@@ -167,8 +167,14 @@ class HeatPumpThermostat(ClimateEntity):
             self.active_outdoor_mapping = None
 
     async def _async_control_loop(self, now: datetime = dt_util.utcnow()) -> None:
-        # Match outdoor temperature to threshold mapping
-        self._match_outdoor_threshold()
+        # Match outdoor temperature to threshold mapping only if outdoor temp algorithm is active
+        if self.algorithm == ControlAlgorithm.WEIGHTED_AVERAGE_OUTDOOR_TEMP:
+            self._match_outdoor_threshold()
+        else:
+            # Clear active mapping if not using outdoor temp algorithm
+            if self.active_outdoor_mapping:
+                _LOGGER.debug("Clearing active outdoor mapping (algorithm changed)")
+                self.active_outdoor_mapping = None
         
         temps = self._read_room_temperatures()
         if temps:

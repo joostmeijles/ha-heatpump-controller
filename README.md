@@ -56,6 +56,8 @@ heatpump_controller:
   - `threshold_before_heat`: Override value for heating threshold
   - `threshold_before_off`: Override value for off threshold
 
+**Important:** To enable outdoor temperature-based threshold adjustments, you must select the **"Weighted Average with Outdoor Temp"** algorithm from the algorithm selector entity. The outdoor threshold overrides will only be applied when this algorithm is active.
+
 **Matching Rules:**
 - Mappings are evaluated in the order they are defined
 - First matching range is applied
@@ -68,6 +70,27 @@ heatpump_controller:
 - If `outdoor_sensor` or `outdoor_thresholds` are not configured, base thresholds are used
 - If outdoor sensor is unavailable or returns non-numeric values, base thresholds are used
 - New sensors will show as unavailable/None when outdoor features are not configured or active
+
+## Control Algorithms
+
+The controller supports multiple control algorithms that can be selected via the `select.algorithm` entity:
+
+### Manual
+Disables automatic heatpump control. The controller will monitor temperatures and update sensors, but will not automatically turn the heatpump on or off.
+
+### Weighted Average
+Uses weighted average temperatures across all rooms to make heating decisions based on the configured base thresholds (`threshold_before_heat` and `threshold_before_off`).
+
+### Weighted Average with Outdoor Temp
+Extends the Weighted Average algorithm by dynamically adjusting heating thresholds based on outdoor temperature. When this algorithm is selected:
+- The controller reads the outdoor temperature sensor
+- Matches the temperature against configured `outdoor_thresholds` ranges
+- Applies the corresponding threshold overrides for more intelligent heating control
+- Logs INFO messages when threshold overrides are applied
+
+**Note:** To use outdoor temperature-based threshold adjustments, you must:
+1. Configure `outdoor_sensor` and `outdoor_thresholds` in your configuration
+2. Select the "Weighted Average with Outdoor Temp" algorithm
 
 ## Card
 Add the Heatpump controller as card:
