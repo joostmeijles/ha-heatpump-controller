@@ -154,8 +154,8 @@ class HeatPumpThermostat(ClimateEntity):
                     "Effective thresholds: before_heat=%.6f, before_off=%.6f",
                     outdoor_temp,
                     mapping,
-                    mapping[CONF_THRESHOLD_BEFORE_HEAT],
-                    mapping[CONF_THRESHOLD_BEFORE_OFF]
+                    mapping.get(CONF_THRESHOLD_BEFORE_HEAT),
+                    mapping.get(CONF_THRESHOLD_BEFORE_OFF)
                 )
                 return
         
