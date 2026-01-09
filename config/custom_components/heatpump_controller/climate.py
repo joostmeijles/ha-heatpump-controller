@@ -72,14 +72,20 @@ class HeatPumpThermostat(ClimateEntity):
     def threshold_before_heat(self) -> float:
         """Return effective threshold_before_heat (from active mapping or base)."""
         if self.active_outdoor_mapping:
-            return self.active_outdoor_mapping[CONF_THRESHOLD_BEFORE_HEAT]
+            return self.active_outdoor_mapping.get(
+                CONF_THRESHOLD_BEFORE_HEAT,
+                self._base_threshold_before_heat,
+            )
         return self._base_threshold_before_heat
 
     @property
     def threshold_before_off(self) -> float:
         """Return effective threshold_before_off (from active mapping or base)."""
         if self.active_outdoor_mapping:
-            return self.active_outdoor_mapping[CONF_THRESHOLD_BEFORE_OFF]
+            return self.active_outdoor_mapping.get(
+                CONF_THRESHOLD_BEFORE_OFF,
+                self._base_threshold_before_off,
+            )
         return self._base_threshold_before_off
 
     def add_sensor(self, sensor: SensorEntity | BinarySensorEntity) -> None:
