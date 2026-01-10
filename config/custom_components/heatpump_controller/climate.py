@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta
-from typing import Any
+from typing import Any, cast
 import voluptuous as vol
 from homeassistant.components.climate import ClimateEntity
 from homeassistant.components.climate.const import (
@@ -9,7 +9,7 @@ from homeassistant.components.climate.const import (
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.components.binary_sensor import BinarySensorEntity
 from homeassistant.const import UnitOfTemperature
-from homeassistant.core import HomeAssistant, State, ServiceCall
+from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.util import dt as dt_util
@@ -144,7 +144,7 @@ class HeatPumpThermostat(ClimateEntity):
             # Clear active mapping if not using outdoor temp algorithm
             self.outdoor_temp_manager.clear_active_mapping()
 
-        temps = read_room_temperatures(self.hass, self.rooms)
+        temps = read_room_temperatures(self.hass, cast(list[dict[str, Any]], self.rooms))
         if temps:
             avg_temp, avg_target, avg_needed_temp = calculate_weighted_averages(temps)
             self.any_room_needs_heat = any_room_needs_heat(
@@ -156,8 +156,9 @@ class HeatPumpThermostat(ClimateEntity):
             self._attr_target_temperature = avg_target
             
             # Update HVAC mode using the controller
+            current_hvac = self._attr_hvac_mode if self._attr_hvac_mode is not None else HVACMode.OFF
             self._attr_hvac_mode = self.hvac_controller.update_hvac_mode(
-                self._attr_hvac_mode, avg_needed_temp, self.any_room_needs_heat
+                current_hvac, avg_needed_temp, self.any_room_needs_heat
             )
 
             self.current_temp_high_precision = round(avg_temp, 3)

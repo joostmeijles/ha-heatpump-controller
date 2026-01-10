@@ -4,7 +4,7 @@ This module handles reading temperature values from Home Assistant sensors.
 """
 
 import logging
-from typing import List, Tuple, Optional
+from typing import Sequence, Tuple, Optional, Dict, Any
 from homeassistant.core import HomeAssistant, State
 
 _LOGGER = logging.getLogger(__name__)
@@ -45,19 +45,19 @@ def read_sensor_temperature(
 
 
 def read_room_temperatures(
-    hass: HomeAssistant, rooms: List[dict]
-) -> List[Tuple[float, float, float]]:
+    hass: HomeAssistant, rooms: Sequence[Dict[str, Any]]
+) -> list[Tuple[float, float, float]]:
     """
     Read temperatures from all room sensors.
     
     Args:
         hass: Home Assistant instance
-        rooms: List of room configurations with 'sensor' and 'weight' keys
+        rooms: Sequence of room configurations with 'sensor' and 'weight' keys
         
     Returns:
         List of tuples (current_temp, target_temp, weight) for each room with valid data
     """
-    temps: List[Tuple[float, float, float]] = []
+    temps: list[Tuple[float, float, float]] = []
     for room in rooms:
         climate_state: Optional[State] = hass.states.get(room["sensor"])
         if climate_state:
