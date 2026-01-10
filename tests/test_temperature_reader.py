@@ -172,8 +172,9 @@ class TestReadRoomTemperatures:
         
         state = Mock()
         state.state = "20.0"
-        state.attributes = {"friendly_name": "Living Room"}
-        state.attributes.get = Mock(side_effect=lambda key, default=None: default)
+        # Use a Mock object for attributes to allow get() method override
+        state.attributes = Mock()
+        state.attributes.get = Mock(return_value=0.0)
         mock_hass.states.get.return_value = state
         
         temps = read_room_temperatures(mock_hass, rooms)
@@ -194,13 +195,12 @@ class TestReadRoomTemperatures:
         
         state = Mock()
         state.state = "20.0"
+        # Use a simple dict for attributes, the code will handle missing friendly_name
         state.attributes = {"temperature_target": 22.0}
-        # Simulate missing friendly_name by returning the default
-        state.attributes.get = Mock(side_effect=lambda key, default=None: 
-                                   22.0 if key == "temperature_target" else default)
         mock_hass.states.get.return_value = state
         
         temps = read_room_temperatures(mock_hass, rooms)
         
         assert len(temps) == 1
+        assert temps[0] == (20.0, 22.0, 1.0)
         assert temps[0] == (20.0, 22.0, 1.0)

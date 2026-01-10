@@ -92,21 +92,35 @@ class TestPauseLogic:
 class TestUpdateHVACMode:
     """Test HVAC mode update logic."""
 
-    def test_paused_turns_off(self):
+    @patch('config.custom_components.heatpump_controller.hvac_controller.dt_util')
+    def test_paused_turns_off(self, mock_dt_util):
         """Test that paused state turns heat off."""
-        controller = HVACController(0.07, 0.007, 0.3)
+        from datetime import datetime
+        now = datetime(2024, 1, 1, 12, 0, 0)
+        mock_dt_util.utcnow.return_value = now
         
-        with patch.object(controller, 'is_paused', True):
-            mode = controller.update_hvac_mode(HVACMode.HEAT, 0.1, False)
-            assert mode == HVACMode.OFF
+        controller = HVACController(0.07, 0.007, 0.3)
+        controller.set_pause(30)
+        
+        # Check paused state turns heat off
+        mock_dt_util.utcnow.return_value = now + timedelta(minutes=15)
+        mode = controller.update_hvac_mode(HVACMode.HEAT, 0.1, False)
+        assert mode == HVACMode.OFF
 
-    def test_paused_keeps_off(self):
+    @patch('config.custom_components.heatpump_controller.hvac_controller.dt_util')
+    def test_paused_keeps_off(self, mock_dt_util):
         """Test that paused state keeps heat off."""
-        controller = HVACController(0.07, 0.007, 0.3)
+        from datetime import datetime
+        now = datetime(2024, 1, 1, 12, 0, 0)
+        mock_dt_util.utcnow.return_value = now
         
-        with patch.object(controller, 'is_paused', True):
-            mode = controller.update_hvac_mode(HVACMode.OFF, 0.1, False)
-            assert mode == HVACMode.OFF
+        controller = HVACController(0.07, 0.007, 0.3)
+        controller.set_pause(30)
+        
+        # Check paused state keeps heat off
+        mock_dt_util.utcnow.return_value = now + timedelta(minutes=15)
+        mode = controller.update_hvac_mode(HVACMode.OFF, 0.1, False)
+        assert mode == HVACMode.OFF
 
     def test_any_room_needs_heat_override(self):
         """Test that any_room_needs_heat turns heat on."""
@@ -225,14 +239,20 @@ class TestEdgeCases:
 class TestPriorityOrder:
     """Test priority order of different conditions."""
 
-    def test_pause_overrides_any_room_needs_heat(self):
+    @patch('config.custom_components.heatpump_controller.hvac_controller.dt_util')
+    def test_pause_overrides_any_room_needs_heat(self, mock_dt_util):
         """Test that pause takes priority over any_room_needs_heat."""
-        controller = HVACController(0.07, 0.007, 0.3)
+        from datetime import datetime
+        now = datetime(2024, 1, 1, 12, 0, 0)
+        mock_dt_util.utcnow.return_value = now
         
-        with patch.object(controller, 'is_paused', True):
-            # Even with any_room_needs_heat=True, should be OFF
-            mode = controller.update_hvac_mode(HVACMode.HEAT, 0.1, True)
-            assert mode == HVACMode.OFF
+        controller = HVACController(0.07, 0.007, 0.3)
+        controller.set_pause(30)
+        
+        # Even with any_room_needs_heat=True, should be OFF
+        mock_dt_util.utcnow.return_value = now + timedelta(minutes=15)
+        mode = controller.update_hvac_mode(HVACMode.HEAT, 0.1, True)
+        assert mode == HVACMode.OFF
 
     def test_any_room_needs_heat_overrides_hysteresis(self):
         """Test that any_room_needs_heat overrides hysteresis."""
