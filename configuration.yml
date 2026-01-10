@@ -18,7 +18,7 @@ heatpump_controller:
   - threshold_room_needs_heat: 0.3
   - outdoor_sensor: sensor.outdoor_temperature
   - outdoor_thresholds:
-      - max_temp: 2
+      - max_temp: 2 # Always on
         threshold_before_heat: 0.00
         threshold_before_off: 0.000
       - min_temp: 2
