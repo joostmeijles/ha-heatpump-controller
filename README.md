@@ -20,7 +20,9 @@ heatpump_controller:
 
 ### Outdoor Temperature-Based Threshold Adjustments (Optional)
 
-You can configure the controller to automatically adjust heating thresholds based on outdoor temperature. This allows for more aggressive heating in cold weather and more conservative operation in milder conditions:
+You can configure the controller to automatically adjust heating thresholds based on outdoor temperature. This allows for more aggressive heating in cold weather and more conservative operation in milder conditions.
+
+To improve reliability, you can configure both a primary outdoor sensor and a fallback sensor. The fallback sensor will be used automatically if the primary sensor becomes unavailable:
 
 ```yaml
 heatpump_controller:
@@ -28,7 +30,8 @@ heatpump_controller:
   threshold_before_heat: 0.07
   threshold_before_off: 0.007
   threshold_room_needs_heat: 0.3
-  outdoor_sensor: sensor.outdoor_temperature
+  outdoor_sensor: sensor.outdoor_temperature           # Primary sensor (e.g., cloud-based)
+  outdoor_sensor_fallback: sensor.local_outdoor_temp   # Fallback sensor (e.g., local sensor)
   outdoor_thresholds:
     - min_temp: -10
       max_temp: 5
@@ -49,7 +52,8 @@ heatpump_controller:
 ```
 
 **Outdoor Threshold Configuration:**
-- `outdoor_sensor`: Entity ID of your outdoor temperature sensor
+- `outdoor_sensor`: Entity ID of your primary outdoor temperature sensor
+- `outdoor_sensor_fallback` (optional): Entity ID of a fallback outdoor temperature sensor. Used when the primary sensor is unavailable or returns invalid values.
 - `outdoor_thresholds`: List of temperature ranges with their respective thresholds
   - `min_temp` (optional): Minimum temperature (inclusive) for this range
   - `max_temp` (optional): Maximum temperature (exclusive) for this range

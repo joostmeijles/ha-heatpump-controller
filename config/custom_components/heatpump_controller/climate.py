@@ -16,7 +16,7 @@ from homeassistant.util import dt as dt_util
 import logging
 
 from .const import CONTROLLER, DOMAIN, HEATPUMP_CONTROLLER_FRIENDLY_NAME, ControlAlgorithm
-from .config import CONF_ON_OFF_SWITCH, CONF_THRESHOLD_BEFORE_HEAT, CONF_THRESHOLD_BEFORE_OFF, CONF_THRESHOLD_ROOM_NEEDS_HEAT, RoomConfig, CONF_ROOMS, CONF_OUTDOOR_SENSOR, CONF_OUTDOOR_THRESHOLDS
+from .config import CONF_ON_OFF_SWITCH, CONF_THRESHOLD_BEFORE_HEAT, CONF_THRESHOLD_BEFORE_OFF, CONF_THRESHOLD_ROOM_NEEDS_HEAT, RoomConfig, CONF_ROOMS, CONF_OUTDOOR_SENSOR, CONF_OUTDOOR_SENSOR_FALLBACK, CONF_OUTDOOR_THRESHOLDS
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -29,7 +29,7 @@ class HeatPumpThermostat(ClimateEntity):
     _attr_hvac_modes = [HVACMode.HEAT, HVACMode.OFF]
     _attr_should_poll = False  # Disable polling, use time-based updates
 
-    def __init__(self, hass: HomeAssistant, rooms: list[RoomConfig], on_off_switch: str | None, threshold_before_heat: float, threshold_before_off: float, threshold_room_needs_heat: float, outdoor_sensor: str | None = None, outdoor_thresholds: list[dict[str, Any]] | None = None) -> None:
+    def __init__(self, hass: HomeAssistant, rooms: list[RoomConfig], on_off_switch: str | None, threshold_before_heat: float, threshold_before_off: float, threshold_room_needs_heat: float, outdoor_sensor: str | None = None, outdoor_sensor_fallback: str | None = None, outdoor_thresholds: list[dict[str, Any]] | None = None) -> None:
         self._attr_hvac_mode = HVACMode.OFF
         self.hass = hass
         self.rooms = rooms
@@ -38,6 +38,7 @@ class HeatPumpThermostat(ClimateEntity):
         self._base_threshold_before_off = threshold_before_off
         self.threshold_room_needs_heat = threshold_room_needs_heat
         self.outdoor_sensor = outdoor_sensor
+        self.outdoor_sensor_fallback = outdoor_sensor_fallback
         self.outdoor_thresholds = outdoor_thresholds or []
         self.outdoor_temp: float | None = None
         self.active_outdoor_mapping: dict[str, Any] | None = None
@@ -99,26 +100,46 @@ class HeatPumpThermostat(ClimateEntity):
             self._algorithm = algorithm
             self.hass.async_create_task(self._async_control_loop())
 
-    def _get_outdoor_temperature(self) -> float | None:
-        """Read outdoor temperature from sensor. Returns None if unavailable."""
-        if not self.outdoor_sensor:
-            _LOGGER.debug("Outdoor sensor not configured")
+    def _read_sensor_temperature(self, sensor: str | None, sensor_type: str) -> float | None:
+        """Read temperature from a sensor. Returns None if unavailable."""
+        if not sensor:
+            _LOGGER.debug("%s sensor not configured", sensor_type)
             return None
 
-        state: State | None = self.hass.states.get(self.outdoor_sensor)
+        state: State | None = self.hass.states.get(sensor)
         if not state:
-            _LOGGER.debug("Outdoor sensor %s not found", self.outdoor_sensor)
+            _LOGGER.debug("%s sensor %s not found", sensor_type, sensor)
             return None
 
         try:
             temp = float(state.state)
-            self.outdoor_temp = temp
+            _LOGGER.debug("%s sensor %s read successfully: %.2f°C", sensor_type, sensor, temp)
             return temp
         except (ValueError, TypeError):
-            _LOGGER.debug("Outdoor sensor %s has non-numeric state: %s",
-                          self.outdoor_sensor, state.state)
-            self.outdoor_temp = None
+            _LOGGER.debug("%s sensor %s has non-numeric state: %s",
+                          sensor_type, sensor, state.state)
             return None
+
+    def _get_outdoor_temperature(self) -> float | None:
+        """Read outdoor temperature from sensor. Returns None if unavailable."""
+        # Try primary sensor first
+        temp = self._read_sensor_temperature(self.outdoor_sensor, "Outdoor")
+        if temp is not None:
+            self.outdoor_temp = temp
+            return temp
+
+        # Try fallback sensor if primary failed
+        if self.outdoor_sensor_fallback:
+            _LOGGER.info("Primary outdoor sensor unavailable, trying fallback sensor %s",
+                        self.outdoor_sensor_fallback)
+            temp = self._read_sensor_temperature(self.outdoor_sensor_fallback, "Outdoor fallback")
+            if temp is not None:
+                self.outdoor_temp = temp
+                return temp
+
+        # Both sensors unavailable
+        self.outdoor_temp = None
+        return None
 
     def _match_outdoor_threshold(self) -> None:
         """Match outdoor temperature to threshold mapping and apply override."""
@@ -389,6 +410,7 @@ def create_from_config(hass: HomeAssistant, config: dict[str, Any]) -> HeatPumpT
     threshold_before_off: float = config[CONF_THRESHOLD_BEFORE_OFF]
     threshold_room_needs_heat: float = config[CONF_THRESHOLD_ROOM_NEEDS_HEAT]
     outdoor_sensor: str | None = config.get(CONF_OUTDOOR_SENSOR)
+    outdoor_sensor_fallback: str | None = config.get(CONF_OUTDOOR_SENSOR_FALLBACK)
     outdoor_thresholds: list[dict[str, Any]
                              ] | None = config.get(CONF_OUTDOOR_THRESHOLDS)
 
@@ -400,6 +422,7 @@ def create_from_config(hass: HomeAssistant, config: dict[str, Any]) -> HeatPumpT
         threshold_before_off,
         threshold_room_needs_heat,
         outdoor_sensor,
+        outdoor_sensor_fallback,
         outdoor_thresholds,
     )
 
