@@ -25,7 +25,7 @@ from .hvac_controller import HVACController
 _LOGGER = logging.getLogger(__name__)
 
 
-class HeatPumpThermostat(ClimateEntity):
+class HeatpumpThermostat(ClimateEntity):
     _attr_name = HEATPUMP_CONTROLLER_FRIENDLY_NAME
     _attr_unique_id = DOMAIN
     _attr_temperature_unit = UnitOfTemperature.CELSIUS
@@ -224,7 +224,7 @@ class HeatPumpThermostat(ClimateEntity):
             )
 
 
-def create_from_config(hass: HomeAssistant, config: dict[str, Any]) -> HeatPumpThermostat:
+def create_from_config(hass: HomeAssistant, config: dict[str, Any]) -> HeatpumpThermostat:
     rooms: list[RoomConfig] = config[CONF_ROOMS]
     on_off_switch: str | None = config.get(CONF_ON_OFF_SWITCH)
     threshold_before_heat: float = config[CONF_THRESHOLD_BEFORE_HEAT]
@@ -235,7 +235,7 @@ def create_from_config(hass: HomeAssistant, config: dict[str, Any]) -> HeatPumpT
     outdoor_thresholds: list[dict[str, Any]
                              ] | None = config.get(CONF_OUTDOOR_THRESHOLDS)
 
-    return HeatPumpThermostat(
+    return HeatpumpThermostat(
         hass,
         rooms,
         on_off_switch,
@@ -249,7 +249,7 @@ def create_from_config(hass: HomeAssistant, config: dict[str, Any]) -> HeatPumpT
 
 
 async def async_setup_platform(hass: HomeAssistant, config: dict[str, Any], async_add_entities: AddEntitiesCallback, discovery_info: dict[str, Any] | None = None) -> None:
-    controller: HeatPumpThermostat = hass.data[DOMAIN][CONTROLLER]
+    controller: HeatpumpThermostat = hass.data[DOMAIN][CONTROLLER]
     async_add_entities([controller])
 
     async def async_pause_service(call: ServiceCall) -> None:

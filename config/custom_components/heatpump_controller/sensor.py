@@ -8,7 +8,7 @@ from propcache import cached_property
 import json
 import logging
 
-from .climate import HeatPumpThermostat
+from .climate import HeatpumpThermostat
 from .const import DOMAIN, CONTROLLER
 
 TEMPERATURE_SENSORS = {
@@ -29,7 +29,7 @@ class TemperatureSensor(SensorEntity):
     _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_suggested_display_precision = 3
 
-    def __init__(self, controller: HeatPumpThermostat, attr: str, name: str) -> None:
+    def __init__(self, controller: HeatpumpThermostat, attr: str, name: str) -> None:
         self.controller = controller
         self.attr = attr
         self._attr_name = name
@@ -65,7 +65,7 @@ class RoomsBelowTargetSensor(SensorEntity):
     _attr_suggested_display_precision = 0
     _attr_native_unit_of_measurement = "rooms"
 
-    def __init__(self, hass: HomeAssistant, controller: HeatPumpThermostat, attr: str, name: str) -> None:
+    def __init__(self, hass: HomeAssistant, controller: HeatpumpThermostat, attr: str, name: str) -> None:
         self.controller = controller
         self.attr = attr
         self._attr_name = name
@@ -95,7 +95,7 @@ class RoomsBelowTargetSensor(SensorEntity):
 class MappingSensor(SensorEntity):
     """Sensor that exposes the active outdoor mapping as JSON."""
 
-    def __init__(self, controller: HeatPumpThermostat) -> None:
+    def __init__(self, controller: HeatpumpThermostat) -> None:
         self.controller = controller
         self._attr_name = "Active Outdoor Mapping"
         self._attr_unique_id = f"{controller.unique_id}_active_outdoor_mapping"
