@@ -4,7 +4,7 @@
 from datetime import timedelta
 from unittest.mock import patch
 from homeassistant.components.climate.const import HVACMode
-from config.custom_components.heatpump_controller.hvac_controller import HVACController
+from config.custom_components.heatpump_controller.climate.hvac_controller import HVACController
 
 
 class TestHVACControllerInitialization:
@@ -42,7 +42,7 @@ class TestHVACControllerProperties:
 class TestPauseLogic:
     """Test pause functionality."""
 
-    @patch('config.custom_components.heatpump_controller.hvac_controller.dt_util')
+    @patch('config.custom_components.heatpump_controller.climate.hvac_controller.dt_util')
     def test_set_pause(self, mock_dt_util):
         """Test setting pause."""
         from datetime import datetime
@@ -55,7 +55,7 @@ class TestPauseLogic:
         expected_pause_until = now + timedelta(minutes=30)
         assert controller.get_pause_until() == expected_pause_until
 
-    @patch('config.custom_components.heatpump_controller.hvac_controller.dt_util')
+    @patch('config.custom_components.heatpump_controller.climate.hvac_controller.dt_util')
     def test_is_paused_active(self, mock_dt_util):
         """Test is_paused when pause is active."""
         from datetime import datetime
@@ -69,7 +69,7 @@ class TestPauseLogic:
         mock_dt_util.utcnow.return_value = now + timedelta(minutes=15)
         assert controller.is_paused is True
 
-    @patch('config.custom_components.heatpump_controller.hvac_controller.dt_util')
+    @patch('config.custom_components.heatpump_controller.climate.hvac_controller.dt_util')
     def test_is_paused_expired(self, mock_dt_util):
         """Test is_paused when pause has expired."""
         from datetime import datetime
@@ -92,7 +92,7 @@ class TestPauseLogic:
 class TestUpdateHVACMode:
     """Test HVAC mode update logic."""
 
-    @patch('config.custom_components.heatpump_controller.hvac_controller.dt_util')
+    @patch('config.custom_components.heatpump_controller.climate.hvac_controller.dt_util')
     def test_paused_turns_off(self, mock_dt_util):
         """Test that paused state turns heat off."""
         from datetime import datetime
@@ -107,7 +107,7 @@ class TestUpdateHVACMode:
         mode = controller.update_hvac_mode(HVACMode.HEAT, 0.1, False)
         assert mode == HVACMode.OFF
 
-    @patch('config.custom_components.heatpump_controller.hvac_controller.dt_util')
+    @patch('config.custom_components.heatpump_controller.climate.hvac_controller.dt_util')
     def test_paused_keeps_off(self, mock_dt_util):
         """Test that paused state keeps heat off."""
         from datetime import datetime
@@ -239,7 +239,7 @@ class TestEdgeCases:
 class TestPriorityOrder:
     """Test priority order of different conditions."""
 
-    @patch('config.custom_components.heatpump_controller.hvac_controller.dt_util')
+    @patch('config.custom_components.heatpump_controller.climate.hvac_controller.dt_util')
     def test_pause_overrides_any_room_needs_heat(self, mock_dt_util):
         """Test that pause takes priority over any_room_needs_heat."""
         from datetime import datetime

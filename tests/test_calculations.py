@@ -1,7 +1,7 @@
 """Tests for calculations module."""
 
 import pytest
-from config.custom_components.heatpump_controller.calculations import (
+from config.custom_components.heatpump_controller.climate.calculations import (
     calculate_weighted_averages,
     calculate_num_rooms_below_target,
     any_room_needs_heat,

@@ -1,7 +1,7 @@
 """Tests for outdoor_temperature module."""
 
 from unittest.mock import patch
-from config.custom_components.heatpump_controller.outdoor_temperature import (
+from config.custom_components.heatpump_controller.climate.outdoor_temperature import (
     OutdoorTemperatureManager,
 )
 
@@ -36,7 +36,7 @@ class TestOutdoorTemperatureManager:
 class TestGetOutdoorTemperature:
     """Test the get_outdoor_temperature method."""
 
-    @patch('config.custom_components.heatpump_controller.outdoor_temperature.read_sensor_temperature')
+    @patch('config.custom_components.heatpump_controller.climate.outdoor_temperature.read_sensor_temperature')
     def test_read_from_primary_sensor(self, mock_read_sensor, mock_hass):
         """Test reading from primary sensor successfully."""
         mock_read_sensor.return_value = 15.5
@@ -48,7 +48,7 @@ class TestGetOutdoorTemperature:
         assert manager.outdoor_temp == 15.5
         mock_read_sensor.assert_called_once_with(mock_hass, "sensor.outdoor", "Outdoor")
 
-    @patch('config.custom_components.heatpump_controller.outdoor_temperature.read_sensor_temperature')
+    @patch('config.custom_components.heatpump_controller.climate.outdoor_temperature.read_sensor_temperature')
     def test_fallback_to_secondary_sensor(self, mock_read_sensor, mock_hass):
         """Test falling back to secondary sensor when primary fails."""
         # Primary returns None, fallback returns 15.5
@@ -65,7 +65,7 @@ class TestGetOutdoorTemperature:
         assert manager.outdoor_temp == 15.5
         assert mock_read_sensor.call_count == 2
 
-    @patch('config.custom_components.heatpump_controller.outdoor_temperature.read_sensor_temperature')
+    @patch('config.custom_components.heatpump_controller.climate.outdoor_temperature.read_sensor_temperature')
     def test_both_sensors_unavailable(self, mock_read_sensor, mock_hass):
         """Test when both sensors are unavailable."""
         mock_read_sensor.return_value = None
@@ -80,7 +80,7 @@ class TestGetOutdoorTemperature:
         assert temp is None
         assert manager.outdoor_temp is None
 
-    @patch('config.custom_components.heatpump_controller.outdoor_temperature.read_sensor_temperature')
+    @patch('config.custom_components.heatpump_controller.climate.outdoor_temperature.read_sensor_temperature')
     def test_no_fallback_sensor(self, mock_read_sensor, mock_hass):
         """Test when primary fails and no fallback is configured."""
         mock_read_sensor.return_value = None
@@ -96,7 +96,7 @@ class TestGetOutdoorTemperature:
 class TestMatchOutdoorThreshold:
     """Test the match_outdoor_threshold method."""
 
-    @patch('config.custom_components.heatpump_controller.outdoor_temperature.read_sensor_temperature')
+    @patch('config.custom_components.heatpump_controller.climate.outdoor_temperature.read_sensor_temperature')
     def test_match_first_range(self, mock_read_sensor, mock_hass, sample_outdoor_thresholds):
         """Test matching the first temperature range."""
         mock_read_sensor.return_value = 0.0  # In range [-10, 5)
@@ -112,7 +112,7 @@ class TestMatchOutdoorThreshold:
         assert manager.active_outdoor_mapping["threshold_before_heat"] == 0.03
         assert manager.active_outdoor_mapping["threshold_before_off"] == 0.003
 
-    @patch('config.custom_components.heatpump_controller.outdoor_temperature.read_sensor_temperature')
+    @patch('config.custom_components.heatpump_controller.climate.outdoor_temperature.read_sensor_temperature')
     def test_match_middle_range(self, mock_read_sensor, mock_hass, sample_outdoor_thresholds):
         """Test matching a middle temperature range."""
         mock_read_sensor.return_value = 10.0  # In range [5, 15)
@@ -128,7 +128,7 @@ class TestMatchOutdoorThreshold:
         assert manager.active_outdoor_mapping["threshold_before_heat"] == 0.07
         assert manager.active_outdoor_mapping["threshold_before_off"] == 0.007
 
-    @patch('config.custom_components.heatpump_controller.outdoor_temperature.read_sensor_temperature')
+    @patch('config.custom_components.heatpump_controller.climate.outdoor_temperature.read_sensor_temperature')
     def test_match_last_range(self, mock_read_sensor, mock_hass, sample_outdoor_thresholds):
         """Test matching the last temperature range with only min_temp."""
         mock_read_sensor.return_value = 20.0  # >= 15
@@ -144,7 +144,7 @@ class TestMatchOutdoorThreshold:
         assert manager.active_outdoor_mapping["threshold_before_heat"] == 0.15
         assert manager.active_outdoor_mapping["threshold_before_off"] == 0.015
 
-    @patch('config.custom_components.heatpump_controller.outdoor_temperature.read_sensor_temperature')
+    @patch('config.custom_components.heatpump_controller.climate.outdoor_temperature.read_sensor_temperature')
     def test_match_boundary_inclusive(self, mock_read_sensor, mock_hass, sample_outdoor_thresholds):
         """Test that min_temp boundary is inclusive."""
         mock_read_sensor.return_value = 5.0  # Exactly at boundary
@@ -159,7 +159,7 @@ class TestMatchOutdoorThreshold:
         # Should match second range [5, 15)
         assert manager.active_outdoor_mapping["threshold_before_heat"] == 0.07
 
-    @patch('config.custom_components.heatpump_controller.outdoor_temperature.read_sensor_temperature')
+    @patch('config.custom_components.heatpump_controller.climate.outdoor_temperature.read_sensor_temperature')
     def test_match_boundary_exclusive(self, mock_read_sensor, mock_hass, sample_outdoor_thresholds):
         """Test that max_temp boundary is exclusive."""
         mock_read_sensor.return_value = 15.0  # Exactly at boundary
@@ -174,7 +174,7 @@ class TestMatchOutdoorThreshold:
         # Should match third range [15, ...)
         assert manager.active_outdoor_mapping["threshold_before_heat"] == 0.15
 
-    @patch('config.custom_components.heatpump_controller.outdoor_temperature.read_sensor_temperature')
+    @patch('config.custom_components.heatpump_controller.climate.outdoor_temperature.read_sensor_temperature')
     def test_no_matching_range(self, mock_read_sensor, mock_hass):
         """Test when no range matches."""
         mock_read_sensor.return_value = 10.0
@@ -192,7 +192,7 @@ class TestMatchOutdoorThreshold:
         
         assert manager.active_outdoor_mapping is None
 
-    @patch('config.custom_components.heatpump_controller.outdoor_temperature.read_sensor_temperature')
+    @patch('config.custom_components.heatpump_controller.climate.outdoor_temperature.read_sensor_temperature')
     def test_fallback_mapping_no_limits(self, mock_read_sensor, mock_hass):
         """Test fallback mapping with no min/max specified."""
         mock_read_sensor.return_value = 100.0  # Any temperature
@@ -210,7 +210,7 @@ class TestMatchOutdoorThreshold:
         assert manager.active_outdoor_mapping is not None
         assert manager.active_outdoor_mapping["threshold_before_heat"] == 0.1
 
-    @patch('config.custom_components.heatpump_controller.outdoor_temperature.read_sensor_temperature')
+    @patch('config.custom_components.heatpump_controller.climate.outdoor_temperature.read_sensor_temperature')
     def test_outdoor_temp_unavailable_clears_mapping(self, mock_read_sensor, mock_hass, sample_outdoor_thresholds):
         """Test that unavailable outdoor temp clears active mapping."""
         # First set a mapping
@@ -229,7 +229,7 @@ class TestMatchOutdoorThreshold:
         
         assert manager.active_outdoor_mapping is None
 
-    @patch('config.custom_components.heatpump_controller.outdoor_temperature.read_sensor_temperature')
+    @patch('config.custom_components.heatpump_controller.climate.outdoor_temperature.read_sensor_temperature')
     def test_no_redundant_logging_for_same_mapping(self, mock_read_sensor, mock_hass, sample_outdoor_thresholds):
         """Test that same mapping doesn't trigger redundant updates."""
         mock_read_sensor.return_value = 10.0
