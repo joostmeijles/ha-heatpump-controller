@@ -1,7 +1,7 @@
 """Tests for outdoor_temperature module."""
 
 import pytest
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 from config.custom_components.heatpump_controller.outdoor_temperature import (
     OutdoorTemperatureManager,
 )

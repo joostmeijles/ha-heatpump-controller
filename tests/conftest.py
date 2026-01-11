@@ -1,7 +1,7 @@
 """Pytest configuration and fixtures for heatpump controller tests."""
 
 import pytest
-from unittest.mock import Mock, MagicMock
+from unittest.mock import Mock
 from typing import Any, Dict, Optional
 
 

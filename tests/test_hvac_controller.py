@@ -1,6 +1,6 @@
 """Tests for hvac_controller module."""
 
-import pytest
+
 from datetime import timedelta
 from unittest.mock import patch
 from homeassistant.components.climate.const import HVACMode

@@ -1,6 +1,6 @@
 """Tests for room_temperature_reader module."""
 
-import pytest
+
 from unittest.mock import Mock
 from config.custom_components.heatpump_controller.room_temperature_reader import (
     read_sensor_temperature,
@@ -203,4 +203,4 @@ class TestReadRoomTemperatures:
         
         assert len(temps) == 1
         assert temps[0] == (20.0, 22.0, 1.0)
-        assert temps[0] == (20.0, 22.0, 1.0)
+
