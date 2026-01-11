@@ -31,20 +31,10 @@ pytest tests/test_calculations.py -v
 ## Test Structure
 
 - **conftest.py** - Pytest fixtures and test configuration
-- **test_calculations.py** - Tests for pure calculation functions (21 tests)
-- **test_room_temperature_reader.py** - Tests for room temperature reading logic (13 tests)
-- **test_outdoor_temperature.py** - Tests for outdoor temperature management (18 tests)
-- **test_hvac_controller.py** - Tests for HVAC decision logic (23 tests)
-
-## Coverage
-
-Current test coverage for refactored modules:
-- calculations.py: 100%
-- hvac_controller.py: 100%
-- room_temperature_reader.py: 100%
-- outdoor_temperature.py: 95%
-
-Total: 75 tests, all passing
+- **test_calculations.py** - Tests for pure calculation functions
+- **test_room_temperature_reader.py** - Tests for room temperature reading logic
+- **test_outdoor_temperature.py** - Tests for outdoor temperature management
+- **test_hvac_controller.py** - Tests for HVAC decision logic
 
 ## Type Checking
 
