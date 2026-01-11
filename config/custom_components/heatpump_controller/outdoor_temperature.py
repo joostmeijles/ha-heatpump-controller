@@ -8,7 +8,7 @@ import logging
 from typing import Any, Dict, List, Optional
 from homeassistant.core import HomeAssistant
 
-from .temperature_reader import read_sensor_temperature
+from .room_temperature_reader import read_sensor_temperature
 
 _LOGGER = logging.getLogger(__name__)
 

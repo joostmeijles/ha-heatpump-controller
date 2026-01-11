@@ -5,7 +5,7 @@ pause state, and override conditions.
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional
 from homeassistant.components.climate.const import HVACMode
 from homeassistant.util import dt as dt_util
@@ -131,7 +131,3 @@ class HVACController:
             f"before OFF: {self._threshold_before_off}°C."
         )
         return current_mode
-
-
-# Import timedelta for set_pause method
-from datetime import timedelta

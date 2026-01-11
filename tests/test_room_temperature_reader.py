@@ -1,8 +1,8 @@
-"""Tests for temperature_reader module."""
+"""Tests for room_temperature_reader module."""
 
 import pytest
 from unittest.mock import Mock
-from config.custom_components.heatpump_controller.temperature_reader import (
+from config.custom_components.heatpump_controller.room_temperature_reader import (
     read_sensor_temperature,
     read_room_temperatures,
 )

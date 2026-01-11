@@ -27,16 +27,6 @@ def mock_state():
 
 
 @pytest.fixture
-def sample_room_temps():
-    """Sample room temperature data for testing."""
-    return [
-        (20.0, 22.0, 1.0),  # Room 1: 20°C current, 22°C target, weight 1.0
-        (19.0, 21.0, 1.5),  # Room 2: 19°C current, 21°C target, weight 1.5
-        (21.0, 22.0, 1.0),  # Room 3: 21°C current, 22°C target, weight 1.0
-    ]
-
-
-@pytest.fixture
 def sample_room_configs():
     """Sample room configurations."""
     return [

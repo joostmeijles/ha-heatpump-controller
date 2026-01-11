@@ -1,6 +1,6 @@
-"""Temperature reading functions for the heatpump controller.
+"""Room temperature reading functions for the heatpump controller.
 
-This module handles reading temperature values from Home Assistant sensors.
+This module handles reading temperature values from Home Assistant room sensors.
 """
 
 import logging
