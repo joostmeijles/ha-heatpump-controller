@@ -5,13 +5,13 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import CONTROLLER, DOMAIN, ControlAlgorithm
-from .climate import HeatPumpThermostat
+from .climate import HeatpumpThermostat
 
 
-class HeatPumpAlgorithmSelect(SelectEntity):
+class HeatpumpAlgorithmSelect(SelectEntity):
     _attr_name = "Algorithm"
 
-    def __init__(self, controller: HeatPumpThermostat) -> None:
+    def __init__(self, controller: HeatpumpThermostat) -> None:
         self._controller = controller
         self._attr_current_option = controller.algorithm.value
         self._attr_unique_id = f"{controller.unique_id}_{self.name}"
@@ -38,4 +38,4 @@ async def async_setup_platform(
     discovery_info: dict[str, Any] | None = None,
 ) -> None:
     controller = hass.data[DOMAIN][CONTROLLER]
-    async_add_entities([HeatPumpAlgorithmSelect(controller)])
+    async_add_entities([HeatpumpAlgorithmSelect(controller)])

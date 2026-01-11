@@ -5,13 +5,13 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from propcache import cached_property
 
-from .climate import HeatPumpThermostat
+from .climate import HeatpumpThermostat
 from .const import DOMAIN, CONTROLLER
 
 
 class HeatpumpBinarySensor(BinarySensorEntity):
 
-    def __init__(self, controller: HeatPumpThermostat, attr: str, name: str) -> None:
+    def __init__(self, controller: HeatpumpThermostat, attr: str, name: str) -> None:
         self.controller = controller
         self.attr = attr
         self._attr_name = name
