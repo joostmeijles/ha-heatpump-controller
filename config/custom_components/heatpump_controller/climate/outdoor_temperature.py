@@ -5,12 +5,17 @@ to configured threshold mappings.
 """
 
 import logging
+from datetime import timedelta
 from typing import Any, Dict, List, Optional
 from homeassistant.core import HomeAssistant
+from homeassistant.util import dt as dt_util
 
 from .room_temperature_reader import read_sensor_temperature
 
 _LOGGER = logging.getLogger(__name__)
+
+# Default delay between mapping switches to prevent rapid switching
+DEFAULT_MAPPING_SWITCH_DELAY = timedelta(hours=1)
 
 
 class OutdoorTemperatureManager:
@@ -22,6 +27,7 @@ class OutdoorTemperatureManager:
         outdoor_sensor: Optional[str] = None,
         outdoor_sensor_fallback: Optional[str] = None,
         outdoor_thresholds: Optional[List[Dict[str, Any]]] = None,
+        mapping_switch_delay: Optional[timedelta] = None,
     ) -> None:
         """
         Initialize the outdoor temperature manager.
@@ -31,6 +37,7 @@ class OutdoorTemperatureManager:
             outdoor_sensor: Entity ID of primary outdoor temperature sensor
             outdoor_sensor_fallback: Entity ID of fallback outdoor temperature sensor
             outdoor_thresholds: List of threshold mappings with temperature ranges
+            mapping_switch_delay: Minimum time between mapping changes (default: 1 hour)
         """
         self.hass = hass
         self.outdoor_sensor = outdoor_sensor
@@ -38,6 +45,8 @@ class OutdoorTemperatureManager:
         self.outdoor_thresholds = outdoor_thresholds or []
         self.outdoor_temp: Optional[float] = None
         self.active_outdoor_mapping: Optional[Dict[str, Any]] = None
+        self._last_mapping_change: Optional[Any] = None
+        self._mapping_switch_delay = mapping_switch_delay or DEFAULT_MAPPING_SWITCH_DELAY
 
     def get_outdoor_temperature(self) -> Optional[float]:
         """
@@ -75,6 +84,7 @@ class OutdoorTemperatureManager:
         
         Evaluates configured outdoor thresholds in order and applies the first matching range.
         Updates self.active_outdoor_mapping with the matched configuration.
+        Rate limits mapping switches to prevent rapid changes near boundaries.
         """
         outdoor_temp = self.get_outdoor_temperature()
 
@@ -84,6 +94,7 @@ class OutdoorTemperatureManager:
                     "Clearing active outdoor mapping (outdoor temp unavailable)"
                 )
                 self.active_outdoor_mapping = None
+                self._last_mapping_change = dt_util.utcnow()
             return
 
         # Evaluate mappings in order, first match wins
@@ -106,7 +117,25 @@ class OutdoorTemperatureManager:
             if matches:
                 # Only update and log when the active mapping actually changes
                 if mapping != self.active_outdoor_mapping:
+                    # Check if enough time has passed since last mapping change
+                    now = dt_util.utcnow()
+                    if self._last_mapping_change is not None:
+                        time_since_last_change = now - self._last_mapping_change
+                        if time_since_last_change < self._mapping_switch_delay:
+                            _LOGGER.debug(
+                                "Suppressing outdoor mapping switch due to rate limit: "
+                                "outdoor_temp=%.2f°C, candidate_mapping=%s, "
+                                "time_since_last_change=%s, required_delay=%s",
+                                outdoor_temp,
+                                mapping,
+                                time_since_last_change,
+                                self._mapping_switch_delay,
+                            )
+                            return
+                    
+                    # Apply the new mapping
                     self.active_outdoor_mapping = mapping
+                    self._last_mapping_change = now
                     _LOGGER.info(
                         "Applying outdoor threshold override: outdoor_temp=%.2f°C, mapping=%s. "
                         "Effective thresholds: before_heat=%.6f, before_off=%.6f",
@@ -121,6 +150,7 @@ class OutdoorTemperatureManager:
         if self.active_outdoor_mapping:
             _LOGGER.debug("Clearing active outdoor mapping (no mapping matched)")
             self.active_outdoor_mapping = None
+            self._last_mapping_change = dt_util.utcnow()
 
     def get_active_mapping(self) -> Optional[Dict[str, Any]]:
         """
@@ -136,3 +166,4 @@ class OutdoorTemperatureManager:
         if self.active_outdoor_mapping:
             _LOGGER.debug("Clearing active outdoor mapping")
             self.active_outdoor_mapping = None
+            self._last_mapping_change = dt_util.utcnow()
