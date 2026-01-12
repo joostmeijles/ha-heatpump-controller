@@ -119,22 +119,25 @@ class OutdoorTemperatureManager:
                 if mapping != self.active_outdoor_mapping:
                     # Check if enough time has passed since last mapping change
                     # Only enforce rate limit when switching between two active mappings (not from None)
-                    now = dt_util.utcnow()
                     if self.active_outdoor_mapping is not None and self._last_mapping_change is not None:
+                        now = dt_util.utcnow()
                         time_since_last_change = now - self._last_mapping_change
                         if time_since_last_change < self._mapping_switch_delay:
                             _LOGGER.debug(
                                 "Suppressing outdoor mapping switch due to rate limit: "
-                                "outdoor_temp=%.2f°C, candidate_mapping=%s, "
+                                "outdoor_temp=%.2f°C, "
+                                "candidate_thresholds: before_heat=%.6f, before_off=%.6f, "
                                 "time_since_last_change=%s, required_delay=%s",
                                 outdoor_temp,
-                                mapping,
+                                mapping.get("threshold_before_heat", "N/A"),
+                                mapping.get("threshold_before_off", "N/A"),
                                 time_since_last_change,
                                 self._mapping_switch_delay,
                             )
                             return
                     
                     # Apply the new mapping
+                    now = dt_util.utcnow()
                     self.active_outdoor_mapping = mapping
                     self._last_mapping_change = now
                     _LOGGER.info(
