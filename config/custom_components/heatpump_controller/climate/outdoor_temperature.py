@@ -5,7 +5,7 @@ to configured threshold mappings.
 """
 
 import logging
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 from homeassistant.core import HomeAssistant
 from homeassistant.util import dt as dt_util
@@ -45,7 +45,7 @@ class OutdoorTemperatureManager:
         self.outdoor_thresholds = outdoor_thresholds or []
         self.outdoor_temp: Optional[float] = None
         self.active_outdoor_mapping: Optional[Dict[str, Any]] = None
-        self._last_mapping_change: Optional[Any] = None
+        self._last_mapping_change: Optional[datetime] = None
         self._mapping_switch_delay = mapping_switch_delay or DEFAULT_MAPPING_SWITCH_DELAY
 
     def get_outdoor_temperature(self) -> Optional[float]:
@@ -117,16 +117,18 @@ class OutdoorTemperatureManager:
             if matches:
                 # Only update and log when the active mapping actually changes
                 if mapping != self.active_outdoor_mapping:
+                    # Capture current time once for consistent timestamp usage
+                    now = dt_util.utcnow()
+                    
                     # Check if enough time has passed since last mapping change
                     # Only enforce rate limit when switching between two active mappings (not from None)
                     if self.active_outdoor_mapping is not None and self._last_mapping_change is not None:
-                        now = dt_util.utcnow()
                         time_since_last_change = now - self._last_mapping_change
                         if time_since_last_change < self._mapping_switch_delay:
                             _LOGGER.debug(
                                 "Suppressing outdoor mapping switch due to rate limit: "
                                 "outdoor_temp=%.2f°C, "
-                                "candidate_thresholds: before_heat=%.6f, before_off=%.6f, "
+                                "candidate_thresholds: before_heat=%s, before_off=%s, "
                                 "time_since_last_change=%s, required_delay=%s",
                                 outdoor_temp,
                                 mapping.get("threshold_before_heat", "N/A"),
@@ -137,12 +139,11 @@ class OutdoorTemperatureManager:
                             return
                     
                     # Apply the new mapping
-                    now = dt_util.utcnow()
                     self.active_outdoor_mapping = mapping
                     self._last_mapping_change = now
                     _LOGGER.info(
                         "Applying outdoor threshold override: outdoor_temp=%.2f°C, mapping=%s. "
-                        "Effective thresholds: before_heat=%.6f, before_off=%.6f",
+                        "Effective thresholds: before_heat=%s, before_off=%s",
                         outdoor_temp,
                         mapping,
                         mapping.get("threshold_before_heat", "N/A"),
