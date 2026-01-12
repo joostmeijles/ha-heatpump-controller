@@ -94,7 +94,7 @@ class OutdoorTemperatureManager:
                     "Clearing active outdoor mapping (outdoor temp unavailable)"
                 )
                 self.active_outdoor_mapping = None
-                self._last_mapping_change = dt_util.utcnow()
+                self._last_mapping_change = None  # Reset to allow immediate re-application
             return
 
         # Evaluate mappings in order, first match wins
@@ -118,8 +118,9 @@ class OutdoorTemperatureManager:
                 # Only update and log when the active mapping actually changes
                 if mapping != self.active_outdoor_mapping:
                     # Check if enough time has passed since last mapping change
+                    # Only enforce rate limit when switching between two active mappings (not from None)
                     now = dt_util.utcnow()
-                    if self._last_mapping_change is not None:
+                    if self.active_outdoor_mapping is not None and self._last_mapping_change is not None:
                         time_since_last_change = now - self._last_mapping_change
                         if time_since_last_change < self._mapping_switch_delay:
                             _LOGGER.debug(
@@ -150,7 +151,7 @@ class OutdoorTemperatureManager:
         if self.active_outdoor_mapping:
             _LOGGER.debug("Clearing active outdoor mapping (no mapping matched)")
             self.active_outdoor_mapping = None
-            self._last_mapping_change = dt_util.utcnow()
+            self._last_mapping_change = None  # Reset to allow immediate re-application
 
     def get_active_mapping(self) -> Optional[Dict[str, Any]]:
         """
@@ -166,4 +167,4 @@ class OutdoorTemperatureManager:
         if self.active_outdoor_mapping:
             _LOGGER.debug("Clearing active outdoor mapping")
             self.active_outdoor_mapping = None
-            self._last_mapping_change = dt_util.utcnow()
+            self._last_mapping_change = None  # Reset to allow immediate re-application
