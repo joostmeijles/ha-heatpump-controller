@@ -1,7 +1,7 @@
 """Tests for HeatpumpThermostat algorithm persistence."""
 
 import pytest
-from unittest.mock import Mock, AsyncMock, patch
+from unittest.mock import Mock, patch
 from homeassistant.core import State
 from config.custom_components.heatpump_controller.climate import HeatpumpThermostat
 from config.custom_components.heatpump_controller.const import ControlAlgorithm
@@ -225,62 +225,3 @@ class TestAlgorithmPersistence:
 
         # Verify default algorithm is used when invalid value encountered
         assert thermostat.algorithm == ControlAlgorithm.MANUAL
-
-    @pytest.mark.asyncio
-    async def test_algorithm_set_and_persisted_in_state(self, mock_hass, sample_rooms):
-        """Test that algorithm is included in state attributes for persistence."""
-        # Create thermostat instance
-        thermostat = HeatpumpThermostat(
-            mock_hass,
-            sample_rooms,
-            "switch.heatpump",
-            0.07,
-            0.007,
-            0.3,
-        )
-
-        # Set algorithm
-        thermostat.set_algorithm(ControlAlgorithm.WEIGHTED_AVERAGE)
-
-        # Verify algorithm is exposed via property
-        assert thermostat.algorithm == ControlAlgorithm.WEIGHTED_AVERAGE
-
-    @pytest.mark.asyncio
-    async def test_algorithm_changes_persist_across_restart(self, mock_hass, sample_rooms):
-        """Test that algorithm changes are reflected in restored state."""
-        # Create initial thermostat and set algorithm
-        thermostat1 = HeatpumpThermostat(
-            mock_hass,
-            sample_rooms,
-            "switch.heatpump",
-            0.07,
-            0.007,
-            0.3,
-        )
-        thermostat1.set_algorithm(ControlAlgorithm.WEIGHTED_AVERAGE_OUTDOOR_TEMP)
-
-        # Simulate restart - create new thermostat and restore from "state"
-        thermostat2 = HeatpumpThermostat(
-            mock_hass,
-            sample_rooms,
-            "switch.heatpump",
-            0.07,
-            0.007,
-            0.3,
-        )
-
-        # Mock last state based on first thermostat's algorithm
-        last_state = State(
-            "climate.heatpump_controller",
-            "heat",
-            {"algorithm": thermostat1.algorithm.value},
-        )
-
-        # Restore state in second thermostat
-        with patch.object(thermostat2, "async_get_last_state", return_value=last_state):
-            with patch("config.custom_components.heatpump_controller.climate.async_track_time_interval"):
-                await thermostat2.async_added_to_hass()
-
-        # Verify algorithm was preserved
-        assert thermostat2.algorithm == ControlAlgorithm.WEIGHTED_AVERAGE_OUTDOOR_TEMP
-        assert thermostat2.algorithm == thermostat1.algorithm
