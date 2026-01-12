@@ -12,6 +12,7 @@ from homeassistant.const import UnitOfTemperature
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.event import async_track_time_interval
+from homeassistant.helpers.restore_state import RestoreEntity
 from homeassistant.util import dt as dt_util
 import logging
 
@@ -25,7 +26,7 @@ from .hvac_controller import HVACController
 _LOGGER = logging.getLogger(__name__)
 
 
-class HeatpumpThermostat(ClimateEntity):
+class HeatpumpThermostat(ClimateEntity, RestoreEntity):
     _attr_name = HEATPUMP_CONTROLLER_FRIENDLY_NAME
     _attr_unique_id = DOMAIN
     _attr_temperature_unit = UnitOfTemperature.CELSIUS
@@ -62,7 +63,29 @@ class HeatpumpThermostat(ClimateEntity):
         _LOGGER.info("Manual HVAC mode changes are disabled.")
 
     async def async_added_to_hass(self) -> None:
-        """Register periodic control loop."""
+        """Register periodic control loop and restore state."""
+        await super().async_added_to_hass()
+        
+        # Restore previous algorithm state
+        last_state = await self.async_get_last_state()
+        if last_state is not None:
+            attributes = last_state.attributes
+            # Try to restore algorithm from state attributes
+            if attributes and "algorithm" in attributes:
+                try:
+                    restored_algo = ControlAlgorithm(attributes["algorithm"])
+                    self._algorithm = restored_algo
+                    _LOGGER.info("Restored algorithm to %s", restored_algo.label)
+                except (ValueError, KeyError) as ex:
+                    _LOGGER.warning(
+                        "Could not restore algorithm from state: %s. Using default: %s",
+                        ex,
+                        self._algorithm.label,
+                    )
+        else:
+            _LOGGER.info("No previous state found, using default algorithm: %s", self._algorithm.label)
+        
+        # Register periodic control loop
         self.async_on_remove(
             async_track_time_interval(
                 self.hass,
