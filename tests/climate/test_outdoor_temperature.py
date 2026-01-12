@@ -278,3 +278,193 @@ class TestOutdoorTemperatureManagerHelpers:
         manager.clear_active_mapping()
         
         assert manager.active_outdoor_mapping is None
+
+
+class TestRateLimiting:
+    """Test rate limiting for outdoor mapping switches."""
+
+    @patch('config.custom_components.heatpump_controller.climate.outdoor_temperature.read_sensor_temperature')
+    def test_first_mapping_applies_immediately(self, mock_read_sensor, mock_hass, sample_outdoor_thresholds):
+        """Test that the first mapping applies immediately without rate limiting."""
+        from datetime import timedelta
+        
+        mock_read_sensor.return_value = 0.0  # Matches first range [-10, 5)
+        manager = OutdoorTemperatureManager(
+            mock_hass,
+            "sensor.outdoor",
+            outdoor_thresholds=sample_outdoor_thresholds,
+            mapping_switch_delay=timedelta(seconds=1),
+        )
+        
+        manager.match_outdoor_threshold()
+        
+        assert manager.active_outdoor_mapping is not None
+        assert manager.active_outdoor_mapping["threshold_before_heat"] == 0.03
+        assert manager._last_mapping_change is not None
+
+    @patch('config.custom_components.heatpump_controller.climate.outdoor_temperature.read_sensor_temperature')
+    @patch('config.custom_components.heatpump_controller.climate.outdoor_temperature.dt_util')
+    def test_mapping_switch_suppressed_within_delay(self, mock_dt_util, mock_read_sensor, mock_hass, sample_outdoor_thresholds):
+        """Test that mapping switches are suppressed within the rate limit delay."""
+        from datetime import timedelta, datetime, timezone
+        
+        # Set up a fixed time progression
+        base_time = datetime(2024, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+        mock_dt_util.utcnow.return_value = base_time
+        
+        # First apply a mapping at 0.0°C
+        mock_read_sensor.return_value = 0.0  # Matches first range
+        manager = OutdoorTemperatureManager(
+            mock_hass,
+            "sensor.outdoor",
+            outdoor_thresholds=sample_outdoor_thresholds,
+            mapping_switch_delay=timedelta(hours=1),
+        )
+        manager.match_outdoor_threshold()
+        
+        assert manager.active_outdoor_mapping["threshold_before_heat"] == 0.03
+        
+        # Try to switch to second range 30 minutes later (should be suppressed)
+        mock_dt_util.utcnow.return_value = base_time + timedelta(minutes=30)
+        mock_read_sensor.return_value = 10.0  # Would match second range
+        manager.match_outdoor_threshold()
+        
+        # Should still be first mapping due to rate limit
+        assert manager.active_outdoor_mapping["threshold_before_heat"] == 0.03
+
+    @patch('config.custom_components.heatpump_controller.climate.outdoor_temperature.read_sensor_temperature')
+    @patch('config.custom_components.heatpump_controller.climate.outdoor_temperature.dt_util')
+    def test_mapping_switch_succeeds_after_delay(self, mock_dt_util, mock_read_sensor, mock_hass, sample_outdoor_thresholds):
+        """Test that mapping switches succeed after the rate limit delay has passed."""
+        from datetime import timedelta, datetime, timezone
+        
+        # Set up a fixed time progression
+        base_time = datetime(2024, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+        mock_dt_util.utcnow.return_value = base_time
+        
+        # First apply a mapping at 0.0°C
+        mock_read_sensor.return_value = 0.0  # Matches first range
+        manager = OutdoorTemperatureManager(
+            mock_hass,
+            "sensor.outdoor",
+            outdoor_thresholds=sample_outdoor_thresholds,
+            mapping_switch_delay=timedelta(hours=1),
+        )
+        manager.match_outdoor_threshold()
+        
+        assert manager.active_outdoor_mapping["threshold_before_heat"] == 0.03
+        
+        # Try to switch to second range 90 minutes later (should succeed)
+        mock_dt_util.utcnow.return_value = base_time + timedelta(minutes=90)
+        mock_read_sensor.return_value = 10.0  # Matches second range
+        manager.match_outdoor_threshold()
+        
+        # Should be second mapping now
+        assert manager.active_outdoor_mapping["threshold_before_heat"] == 0.07
+
+    @patch('config.custom_components.heatpump_controller.climate.outdoor_temperature.read_sensor_temperature')
+    def test_clearing_resets_rate_limit(self, mock_read_sensor, mock_hass, sample_outdoor_thresholds):
+        """Test that clearing a mapping resets the rate limit timestamp."""
+        from datetime import timedelta
+        
+        # First apply a mapping
+        mock_read_sensor.return_value = 0.0  # Matches first range
+        manager = OutdoorTemperatureManager(
+            mock_hass,
+            "sensor.outdoor",
+            outdoor_thresholds=sample_outdoor_thresholds,
+            mapping_switch_delay=timedelta(hours=1),
+        )
+        manager.match_outdoor_threshold()
+        
+        assert manager.active_outdoor_mapping is not None
+        assert manager._last_mapping_change is not None
+        
+        # Clear due to unavailable sensor
+        mock_read_sensor.return_value = None
+        manager.match_outdoor_threshold()
+        
+        assert manager.active_outdoor_mapping is None
+        assert manager._last_mapping_change is None
+        
+        # Immediately apply a new mapping (should succeed without rate limit)
+        mock_read_sensor.return_value = 10.0  # Matches second range
+        manager.match_outdoor_threshold()
+        
+        assert manager.active_outdoor_mapping is not None
+        assert manager.active_outdoor_mapping["threshold_before_heat"] == 0.07
+
+    @patch('config.custom_components.heatpump_controller.climate.outdoor_temperature.read_sensor_temperature')
+    def test_clearing_when_no_mapping_matched_resets_rate_limit(self, mock_read_sensor, mock_hass):
+        """Test that clearing when no mapping matches resets the rate limit timestamp."""
+        from datetime import timedelta
+        
+        thresholds = [
+            {"min_temp": -10, "max_temp": 0, "threshold_before_heat": 0.03, "threshold_before_off": 0.003},
+        ]
+        
+        # First apply a mapping
+        mock_read_sensor.return_value = -5.0  # Matches range
+        manager = OutdoorTemperatureManager(
+            mock_hass,
+            "sensor.outdoor",
+            outdoor_thresholds=thresholds,
+            mapping_switch_delay=timedelta(hours=1),
+        )
+        manager.match_outdoor_threshold()
+        
+        assert manager.active_outdoor_mapping is not None
+        
+        # Temperature outside range - should clear and reset timestamp
+        mock_read_sensor.return_value = 10.0  # No mapping matches
+        manager.match_outdoor_threshold()
+        
+        assert manager.active_outdoor_mapping is None
+        assert manager._last_mapping_change is None
+
+    @patch('config.custom_components.heatpump_controller.climate.outdoor_temperature.read_sensor_temperature')
+    def test_clear_active_mapping_resets_timestamp(self, mock_read_sensor, mock_hass, sample_outdoor_thresholds):
+        """Test that clear_active_mapping() resets the rate limit timestamp."""
+        from datetime import timedelta
+        
+        # First apply a mapping
+        mock_read_sensor.return_value = 0.0
+        manager = OutdoorTemperatureManager(
+            mock_hass,
+            "sensor.outdoor",
+            outdoor_thresholds=sample_outdoor_thresholds,
+            mapping_switch_delay=timedelta(hours=1),
+        )
+        manager.match_outdoor_threshold()
+        
+        assert manager.active_outdoor_mapping is not None
+        assert manager._last_mapping_change is not None
+        
+        # Manually clear the mapping
+        manager.clear_active_mapping()
+        
+        assert manager.active_outdoor_mapping is None
+        assert manager._last_mapping_change is None
+
+    @patch('config.custom_components.heatpump_controller.climate.outdoor_temperature.read_sensor_temperature')
+    def test_same_mapping_does_not_update_timestamp(self, mock_read_sensor, mock_hass, sample_outdoor_thresholds):
+        """Test that keeping the same mapping does not update the timestamp."""
+        from datetime import timedelta
+        
+        # First apply a mapping
+        mock_read_sensor.return_value = 0.0
+        manager = OutdoorTemperatureManager(
+            mock_hass,
+            "sensor.outdoor",
+            outdoor_thresholds=sample_outdoor_thresholds,
+            mapping_switch_delay=timedelta(hours=1),
+        )
+        manager.match_outdoor_threshold()
+        
+        original_timestamp = manager._last_mapping_change
+        
+        # Call again with same temperature (same mapping)
+        manager.match_outdoor_threshold()
+        
+        # Timestamp should not have changed
+        assert manager._last_mapping_change == original_timestamp
