@@ -31,7 +31,6 @@ class TestAlgorithmPersistence:
 
     @pytest.mark.asyncio
     async def test_restore_algorithm_weighted_average(self, mock_hass, sample_rooms):
-        """Test restoring weighted_average algorithm from state."""
         # Create thermostat instance
         thermostat = HeatpumpThermostat(
             mock_hass,
@@ -63,7 +62,6 @@ class TestAlgorithmPersistence:
 
     @pytest.mark.asyncio
     async def test_restore_algorithm_weighted_average_outdoor_temp(self, mock_hass, sample_rooms):
-        """Test restoring weighted_average_outdoor_temp algorithm from state."""
         # Create thermostat instance
         thermostat = HeatpumpThermostat(
             mock_hass,
@@ -95,7 +93,6 @@ class TestAlgorithmPersistence:
 
     @pytest.mark.asyncio
     async def test_restore_algorithm_manual(self, mock_hass, sample_rooms):
-        """Test restoring manual algorithm from state."""
         # Create thermostat instance
         thermostat = HeatpumpThermostat(
             mock_hass,
@@ -127,7 +124,6 @@ class TestAlgorithmPersistence:
 
     @pytest.mark.asyncio
     async def test_default_algorithm_no_previous_state(self, mock_hass, sample_rooms):
-        """Test default algorithm when no previous state exists."""
         # Create thermostat instance
         thermostat = HeatpumpThermostat(
             mock_hass,
@@ -148,7 +144,6 @@ class TestAlgorithmPersistence:
 
     @pytest.mark.asyncio
     async def test_default_algorithm_no_attributes(self, mock_hass, sample_rooms):
-        """Test default algorithm when previous state has no attributes."""
         # Create thermostat instance
         thermostat = HeatpumpThermostat(
             mock_hass,
@@ -172,7 +167,6 @@ class TestAlgorithmPersistence:
 
     @pytest.mark.asyncio
     async def test_default_algorithm_missing_algorithm_attribute(self, mock_hass, sample_rooms):
-        """Test default algorithm when algorithm attribute is missing."""
         # Create thermostat instance
         thermostat = HeatpumpThermostat(
             mock_hass,
@@ -200,7 +194,6 @@ class TestAlgorithmPersistence:
 
     @pytest.mark.asyncio
     async def test_invalid_algorithm_value(self, mock_hass, sample_rooms):
-        """Test handling invalid algorithm value in state."""
         # Create thermostat instance
         thermostat = HeatpumpThermostat(
             mock_hass,
