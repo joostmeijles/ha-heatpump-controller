@@ -1,0 +1,13 @@
+version: 2
+updates:
+  - package-ecosystem: "pip"
+    directory: "/"                        # Location of Python requirements / pyproject
+    schedule:
+      interval: "monthly"                  # "daily" | "weekly" | "monthly"
+    open-pull-requests-limit: 10
+    labels:
+      - "dependencies"
+      - "dependabot"
+    # Optional: uncomment and adjust to only update direct dependencies
+    # allow:
+    #   - dependency-type: "direct"
