@@ -2,8 +2,7 @@
 
 import pytest
 from unittest.mock import Mock, patch
-from homeassistant.core import State
-from config.custom_components.heatpump_controller.climate import HeatpumpThermostat
+from config.custom_components.heatpump_controller.climate import HeatpumpThermostat, AlgorithmStoredData
 from config.custom_components.heatpump_controller.const import ControlAlgorithm
 
 
@@ -41,19 +40,11 @@ class TestAlgorithmPersistence:
             0.3,
         )
 
-        # Mock last state with weighted_average algorithm
-        last_state = State(
-            "climate.heatpump_controller",
-            "heat",
-            {
-                "algorithm": "weighted_average",
-                "current_temperature": 20.0,
-                "target_temperature": 21.0,
-            },
-        )
+        # Mock last extra data with weighted_average algorithm
+        extra_data = AlgorithmStoredData("weighted_average")
 
-        # Patch async_get_last_state to return our mocked state
-        with patch.object(thermostat, "async_get_last_state", return_value=last_state):
+        # Patch async_get_last_extra_data to return our mocked data
+        with patch.object(thermostat, "async_get_last_extra_data", return_value=extra_data):
             with patch("config.custom_components.heatpump_controller.climate.async_track_time_interval"):
                 await thermostat.async_added_to_hass()
 
@@ -72,19 +63,11 @@ class TestAlgorithmPersistence:
             0.3,
         )
 
-        # Mock last state with weighted_average_outdoor_temp algorithm
-        last_state = State(
-            "climate.heatpump_controller",
-            "heat",
-            {
-                "algorithm": "weighted_average_outdoor_temp",
-                "current_temperature": 20.0,
-                "target_temperature": 21.0,
-            },
-        )
+        # Mock last extra data with weighted_average_outdoor_temp algorithm
+        extra_data = AlgorithmStoredData("weighted_average_outdoor_temp")
 
-        # Patch async_get_last_state to return our mocked state
-        with patch.object(thermostat, "async_get_last_state", return_value=last_state):
+        # Patch async_get_last_extra_data to return our mocked data
+        with patch.object(thermostat, "async_get_last_extra_data", return_value=extra_data):
             with patch("config.custom_components.heatpump_controller.climate.async_track_time_interval"):
                 await thermostat.async_added_to_hass()
 
@@ -103,19 +86,11 @@ class TestAlgorithmPersistence:
             0.3,
         )
 
-        # Mock last state with manual algorithm
-        last_state = State(
-            "climate.heatpump_controller",
-            "off",
-            {
-                "algorithm": "manual",
-                "current_temperature": 20.0,
-                "target_temperature": 21.0,
-            },
-        )
+        # Mock last extra data with manual algorithm
+        extra_data = AlgorithmStoredData("manual")
 
-        # Patch async_get_last_state to return our mocked state
-        with patch.object(thermostat, "async_get_last_state", return_value=last_state):
+        # Patch async_get_last_extra_data to return our mocked data
+        with patch.object(thermostat, "async_get_last_extra_data", return_value=extra_data):
             with patch("config.custom_components.heatpump_controller.climate.async_track_time_interval"):
                 await thermostat.async_added_to_hass()
 
@@ -123,7 +98,7 @@ class TestAlgorithmPersistence:
         assert thermostat.algorithm == ControlAlgorithm.MANUAL
 
     @pytest.mark.asyncio
-    async def test_default_algorithm_no_previous_state(self, mock_hass, sample_rooms):
+    async def test_default_algorithm_no_previous_data(self, mock_hass, sample_rooms):
         # Create thermostat instance
         thermostat = HeatpumpThermostat(
             mock_hass,
@@ -134,58 +109,8 @@ class TestAlgorithmPersistence:
             0.3,
         )
 
-        # Patch async_get_last_state to return None (no previous state)
-        with patch.object(thermostat, "async_get_last_state", return_value=None):
-            with patch("config.custom_components.heatpump_controller.climate.async_track_time_interval"):
-                await thermostat.async_added_to_hass()
-
-        # Verify default algorithm is used (MANUAL)
-        assert thermostat.algorithm == ControlAlgorithm.MANUAL
-
-    @pytest.mark.asyncio
-    async def test_default_algorithm_no_attributes(self, mock_hass, sample_rooms):
-        # Create thermostat instance
-        thermostat = HeatpumpThermostat(
-            mock_hass,
-            sample_rooms,
-            "switch.heatpump",
-            0.07,
-            0.007,
-            0.3,
-        )
-
-        # Mock last state without attributes
-        last_state = State("climate.heatpump_controller", "heat")
-
-        # Patch async_get_last_state to return state without attributes
-        with patch.object(thermostat, "async_get_last_state", return_value=last_state):
-            with patch("config.custom_components.heatpump_controller.climate.async_track_time_interval"):
-                await thermostat.async_added_to_hass()
-
-        # Verify default algorithm is used (MANUAL)
-        assert thermostat.algorithm == ControlAlgorithm.MANUAL
-
-    @pytest.mark.asyncio
-    async def test_default_algorithm_missing_algorithm_attribute(self, mock_hass, sample_rooms):
-        # Create thermostat instance
-        thermostat = HeatpumpThermostat(
-            mock_hass,
-            sample_rooms,
-            "switch.heatpump",
-            0.07,
-            0.007,
-            0.3,
-        )
-
-        # Mock last state with attributes but no algorithm
-        last_state = State(
-            "climate.heatpump_controller",
-            "heat",
-            {"current_temperature": 20.0, "target_temperature": 21.0},
-        )
-
-        # Patch async_get_last_state to return state without algorithm attribute
-        with patch.object(thermostat, "async_get_last_state", return_value=last_state):
+        # Patch async_get_last_extra_data to return None (no previous data)
+        with patch.object(thermostat, "async_get_last_extra_data", return_value=None):
             with patch("config.custom_components.heatpump_controller.climate.async_track_time_interval"):
                 await thermostat.async_added_to_hass()
 
@@ -204,17 +129,14 @@ class TestAlgorithmPersistence:
             0.3,
         )
 
-        # Mock last state with invalid algorithm
-        last_state = State(
-            "climate.heatpump_controller",
-            "heat",
-            {"algorithm": "invalid_algo", "current_temperature": 20.0},
-        )
+        # Mock last extra data with invalid algorithm
+        extra_data = AlgorithmStoredData("invalid_algo")
 
-        # Patch async_get_last_state to return state with invalid algorithm
-        with patch.object(thermostat, "async_get_last_state", return_value=last_state):
+        # Patch async_get_last_extra_data to return data with invalid algorithm
+        with patch.object(thermostat, "async_get_last_extra_data", return_value=extra_data):
             with patch("config.custom_components.heatpump_controller.climate.async_track_time_interval"):
                 await thermostat.async_added_to_hass()
 
         # Verify default algorithm is used when invalid value encountered
         assert thermostat.algorithm == ControlAlgorithm.MANUAL
+

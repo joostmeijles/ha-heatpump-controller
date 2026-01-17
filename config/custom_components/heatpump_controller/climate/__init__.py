@@ -12,7 +12,7 @@ from homeassistant.const import UnitOfTemperature
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.event import async_track_time_interval
-from homeassistant.helpers.restore_state import RestoreEntity
+from homeassistant.helpers.restore_state import ExtraStoredData, RestoreEntity
 from homeassistant.util import dt as dt_util
 import logging
 
@@ -24,6 +24,26 @@ from .outdoor_temperature import OutdoorTemperatureManager
 from .hvac_controller import HVACController
 
 _LOGGER = logging.getLogger(__name__)
+
+
+class AlgorithmStoredData(ExtraStoredData):
+    """Object to hold algorithm extra stored data."""
+
+    def __init__(self, algorithm: str) -> None:
+        """Initialize AlgorithmStoredData."""
+        self.algorithm = algorithm
+
+    def as_dict(self) -> dict[str, str]:
+        """Return a dict representation of the extra data."""
+        return {"algorithm": self.algorithm}
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "AlgorithmStoredData | None":
+        """Create AlgorithmStoredData from a dict."""
+        try:
+            return cls(data["algorithm"])
+        except KeyError:
+            return None
 
 
 class HeatpumpThermostat(ClimateEntity, RestoreEntity):
@@ -66,24 +86,21 @@ class HeatpumpThermostat(ClimateEntity, RestoreEntity):
         """Register periodic control loop and restore state."""
         await super().async_added_to_hass()
         
-        # Restore previous algorithm state
-        last_state = await self.async_get_last_state()
-        if last_state is not None:
-            attributes = last_state.attributes
-            # Try to restore algorithm from state attributes
-            if attributes and "algorithm" in attributes:
-                try:
-                    restored_algo = ControlAlgorithm(attributes["algorithm"])
-                    self._algorithm = restored_algo
-                    _LOGGER.info("Restored algorithm to %s", restored_algo.label)
-                except (ValueError, KeyError) as ex:
-                    _LOGGER.warning(
-                        "Could not restore algorithm from state: %s. Using default: %s",
-                        ex,
-                        self._algorithm.label,
-                    )
+        # Restore previous algorithm state using ExtraStoredData
+        extra_data = await self.async_get_last_extra_data()
+        if extra_data is not None:
+            try:
+                restored_algo = ControlAlgorithm(extra_data.as_dict()["algorithm"])
+                self._algorithm = restored_algo
+                _LOGGER.info("Restored algorithm to %s", restored_algo.label)
+            except (ValueError, KeyError) as ex:
+                _LOGGER.warning(
+                    "Could not restore algorithm from extra data: %s. Using default: %s",
+                    ex,
+                    self._algorithm.label,
+                )
         else:
-            _LOGGER.info("No previous state found, using default algorithm: %s", self._algorithm.label)
+            _LOGGER.info("No previous algorithm data found, using default algorithm: %s", self._algorithm.label)
         
         # Register periodic control loop
         self.async_on_remove(
@@ -98,6 +115,11 @@ class HeatpumpThermostat(ClimateEntity, RestoreEntity):
     def algorithm(self) -> ControlAlgorithm:
         """Return the currently active control algorithm."""
         return self._algorithm
+
+    @property
+    def extra_restore_state_data(self) -> AlgorithmStoredData:
+        """Return algorithm extra state data to be stored."""
+        return AlgorithmStoredData(self._algorithm.value)
 
     @property
     def outdoor_temp(self) -> float | None:
