@@ -30,23 +30,20 @@ class AlgorithmStoredData(ExtraStoredData):
     """Object to hold algorithm extra stored data."""
 
     def __init__(self, algorithm: str) -> None:
-        """Initialize AlgorithmStoredData."""
         self.algorithm = algorithm
 
     def as_dict(self) -> dict[str, str]:
-        """Return a dict representation of the extra data."""
         return {"algorithm": self.algorithm}
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "AlgorithmStoredData | None":
-        """Create AlgorithmStoredData from a dict."""
-        try:
-            return cls(data["algorithm"])
-        except KeyError:
-            return None
+        algo = data.get("algorithm")
+        if isinstance(algo, str):
+            return cls(algo)
+        return None
 
 
-class HeatpumpThermostat(ClimateEntity, RestoreEntity):
+class HeatpumpThermostat(RestoreEntity, ClimateEntity):
     _attr_name = HEATPUMP_CONTROLLER_FRIENDLY_NAME
     _attr_unique_id = DOMAIN
     _attr_temperature_unit = UnitOfTemperature.CELSIUS
@@ -63,12 +60,12 @@ class HeatpumpThermostat(ClimateEntity, RestoreEntity):
         self._base_threshold_before_off = threshold_before_off
         self._algorithm: ControlAlgorithm = ControlAlgorithm.MANUAL
         self._sensors: list[SensorEntity | BinarySensorEntity] = []
-        
+
         # Initialize outdoor temperature manager
         self.outdoor_temp_manager = OutdoorTemperatureManager(
             hass, outdoor_sensor, outdoor_sensor_fallback, outdoor_thresholds
         )
-        
+
         # Initialize HVAC controller
         self.hvac_controller = HVACController(
             threshold_before_heat, threshold_before_off, threshold_room_needs_heat
@@ -85,23 +82,29 @@ class HeatpumpThermostat(ClimateEntity, RestoreEntity):
     async def async_added_to_hass(self) -> None:
         """Register periodic control loop and restore state."""
         await super().async_added_to_hass()
-        
+
         # Restore previous algorithm state using ExtraStoredData
-        extra_data = await self.async_get_last_extra_data()
-        if extra_data is not None:
+        extra = await self.async_get_last_extra_data()
+
+        if isinstance(extra, AlgorithmStoredData):
             try:
-                restored_algo = ControlAlgorithm(extra_data.as_dict()["algorithm"])
-                self._algorithm = restored_algo
-                _LOGGER.info("Restored algorithm to %s", restored_algo.label)
-            except (ValueError, KeyError) as ex:
+                self._algorithm = ControlAlgorithm(extra.algorithm)
+                _LOGGER.info(
+                    "Restored algorithm to %s", self._algorithm.label
+                )
+            except ValueError as ex:
                 _LOGGER.warning(
-                    "Could not restore algorithm from extra data: %s. Using default: %s",
+                    "Invalid restored algorithm '%s': %s. Using default: %s",
+                    extra.algorithm,
                     ex,
                     self._algorithm.label,
                 )
         else:
-            _LOGGER.info("No previous algorithm data found, using default algorithm: %s", self._algorithm.label)
-        
+            _LOGGER.info(
+                "No previous algorithm data found, using default algorithm: %s",
+                self._algorithm.label,
+            )
+
         # Register periodic control loop
         self.async_on_remove(
             async_track_time_interval(
@@ -189,9 +192,11 @@ class HeatpumpThermostat(ClimateEntity, RestoreEntity):
             # Clear active mapping if not using outdoor temp algorithm
             self.outdoor_temp_manager.clear_active_mapping()
 
-        temps = read_room_temperatures(self.hass, cast(list[dict[str, Any]], self.rooms))
+        temps = read_room_temperatures(
+            self.hass, cast(list[dict[str, Any]], self.rooms))
         if temps:
-            avg_temp, avg_target, avg_needed_temp = calculate_weighted_averages(temps)
+            avg_temp, avg_target, avg_needed_temp = calculate_weighted_averages(
+                temps)
             self.any_room_needs_heat = any_room_needs_heat(
                 temps, self.threshold_room_needs_heat
             )
@@ -199,7 +204,7 @@ class HeatpumpThermostat(ClimateEntity, RestoreEntity):
             # Update entity state
             self._attr_current_temperature = avg_temp
             self._attr_target_temperature = avg_target
-            
+
             # Update HVAC mode using the controller
             current_hvac = self._attr_hvac_mode if self._attr_hvac_mode is not None else HVACMode.OFF
             self._attr_hvac_mode = self.hvac_controller.update_hvac_mode(
@@ -209,7 +214,8 @@ class HeatpumpThermostat(ClimateEntity, RestoreEntity):
             self.current_temp_high_precision = round(avg_temp, 3)
             self.target_temp_high_precision = round(avg_target, 3)
             self.avg_needed_temp = round(avg_needed_temp, 3)
-            self.num_rooms_below_target = calculate_num_rooms_below_target(temps)
+            self.num_rooms_below_target = calculate_num_rooms_below_target(
+                temps)
 
             # Update extra state attributes
             pause_until = self.hvac_controller.get_pause_until()
@@ -276,7 +282,8 @@ def create_from_config(hass: HomeAssistant, config: dict[str, Any]) -> HeatpumpT
     threshold_before_off: float = config[CONF_THRESHOLD_BEFORE_OFF]
     threshold_room_needs_heat: float = config[CONF_THRESHOLD_ROOM_NEEDS_HEAT]
     outdoor_sensor: str | None = config.get(CONF_OUTDOOR_SENSOR)
-    outdoor_sensor_fallback: str | None = config.get(CONF_OUTDOOR_SENSOR_FALLBACK)
+    outdoor_sensor_fallback: str | None = config.get(
+        CONF_OUTDOOR_SENSOR_FALLBACK)
     outdoor_thresholds: list[dict[str, Any]
                              ] | None = config.get(CONF_OUTDOOR_THRESHOLDS)
 
