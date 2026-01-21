@@ -9,7 +9,7 @@ from .const import CONTROLLER, DOMAIN, ControlAlgorithm
 from .climate import HeatpumpThermostat
 
 
-class HeatpumpAlgorithmSelect(SelectEntity, RestoreEntity):
+class HeatpumpAlgorithmSelect(SelectEntity, RestoreEntity):  # type: ignore[misc]
     _attr_name = "Algorithm"
 
     def __init__(self, controller: HeatpumpThermostat) -> None:
