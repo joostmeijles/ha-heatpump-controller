@@ -1,18 +1,12 @@
 """Tests for the heatpump controller select entity."""
 
 import pytest
-from unittest.mock import Mock, AsyncMock, patch
+from unittest.mock import Mock, AsyncMock
 from homeassistant.core import State
 
-import sys
-import os
-
-# Add parent directory to path for imports
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'config', 'custom_components'))
-
-from heatpump_controller.select import HeatpumpAlgorithmSelect
-from heatpump_controller.const import ControlAlgorithm
-from heatpump_controller.climate import HeatpumpThermostat
+from config.custom_components.heatpump_controller.select import HeatpumpAlgorithmSelect
+from config.custom_components.heatpump_controller.const import ControlAlgorithm
+from config.custom_components.heatpump_controller.climate import HeatpumpThermostat
 
 
 @pytest.fixture
