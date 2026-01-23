@@ -37,6 +37,8 @@ class HeatpumpAlgorithmSelect(SelectEntity, RestoreEntity):  # type: ignore[misc
                     self._controller.set_algorithm(algo)
                     self._attr_current_option = state.state
                     break
+            # Write the restored state back to Home Assistant
+            self.async_write_ha_state()
 
     async def async_select_option(self, option: str) -> None:
         algo = next(a for a in ControlAlgorithm if a.label == option)

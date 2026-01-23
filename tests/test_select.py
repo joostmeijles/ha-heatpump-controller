@@ -90,12 +90,17 @@ async def test_async_added_to_hass_with_previous_state(select_entity, mock_contr
     # Mock the async_get_last_state to return the mock state
     select_entity.async_get_last_state = AsyncMock(return_value=mock_state)
     
+    # Mock async_write_ha_state to avoid hass requirement in tests
+    select_entity.async_write_ha_state = Mock()
+    
     # Call the method
     await select_entity.async_added_to_hass()
     
     # Controller set_algorithm should be called with the restored algorithm
     mock_controller.set_algorithm.assert_called_once_with(ControlAlgorithm.WEIGHTED_AVERAGE)
     assert select_entity._attr_current_option == "Weighted Average"
+    # Verify state was written back
+    select_entity.async_write_ha_state.assert_called_once()
 
 
 @pytest.mark.asyncio
@@ -108,6 +113,9 @@ async def test_async_added_to_hass_with_outdoor_temp_algorithm(select_entity, mo
     # Mock the async_get_last_state to return the mock state
     select_entity.async_get_last_state = AsyncMock(return_value=mock_state)
     
+    # Mock async_write_ha_state to avoid hass requirement in tests
+    select_entity.async_write_ha_state = Mock()
+    
     # Call the method
     await select_entity.async_added_to_hass()
     
@@ -116,6 +124,8 @@ async def test_async_added_to_hass_with_outdoor_temp_algorithm(select_entity, mo
         ControlAlgorithm.WEIGHTED_AVERAGE_OUTDOOR_TEMP
     )
     assert select_entity._attr_current_option == "Weighted Average with Outdoor Temp"
+    # Verify state was written back
+    select_entity.async_write_ha_state.assert_called_once()
 
 
 @pytest.mark.asyncio
