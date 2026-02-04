@@ -1,7 +1,7 @@
 from typing import Any
 from homeassistant.core import HomeAssistant
 from homeassistant.components.sensor import SensorEntity, SensorDeviceClass, SensorStateClass
-from homeassistant.const import UnitOfTemperature
+from homeassistant.const import UnitOfTemperature, UnitOfTime
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from propcache import cached_property
@@ -19,6 +19,7 @@ TEMPERATURE_SENSORS = {
     "threshold_before_off": "Threshold Before Off",
     "threshold_room_needs_heat": "Threshold Room Needs Heat",
     "outdoor_temp": "Outdoor Temperature",
+    "lwt_deviation": "LWT Deviation",
 }
 
 _LOGGER = logging.getLogger(__name__)
@@ -124,6 +125,39 @@ class MappingSensor(SensorEntity):
         )
 
 
+class LWTOffRemainingSensor(SensorEntity):
+    """Sensor that shows minutes remaining in minimum off period."""
+    
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_suggested_display_precision = 1
+    _attr_native_unit_of_measurement = UnitOfTime.MINUTES
+
+    def __init__(self, controller: HeatpumpThermostat) -> None:
+        self.controller = controller
+        self._attr_name = "LWT Off Time Remaining"
+        self._attr_unique_id = f"{controller.unique_id}_lwt_off_remaining"
+
+        # Register self with controller for updates
+        controller.add_sensor(self)
+
+    @property
+    def available(self):  # type: ignore
+        """Return True if the sensor has a valid value."""
+        return getattr(self.controller, "lwt_off_remaining", None) is not None
+
+    @property
+    def native_value(self):  # type: ignore
+        """Return minutes remaining."""
+        return getattr(self.controller, "lwt_off_remaining", None)
+
+    @cached_property
+    def device_info(self) -> DeviceInfo:
+        return DeviceInfo(
+            identifiers={(DOMAIN, self.controller.unique_id)},  # type: ignore
+            name=f"{self.controller.name}"
+        )
+
+
 async def async_setup_platform(
         hass: HomeAssistant,
         config: dict[str, Any],
@@ -142,5 +176,6 @@ async def async_setup_platform(
     ])
 
     async_add_entities([
-        MappingSensor(controller)
+        MappingSensor(controller),
+        LWTOffRemainingSensor(controller),
     ])
