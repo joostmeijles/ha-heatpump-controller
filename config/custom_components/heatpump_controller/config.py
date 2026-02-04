@@ -13,6 +13,15 @@ CONF_ON_OFF_SWITCH = "on_off_switch"
 CONF_OUTDOOR_SENSOR = "outdoor_sensor"
 CONF_OUTDOOR_SENSOR_FALLBACK = "outdoor_sensor_fallback"
 CONF_OUTDOOR_THRESHOLDS = "outdoor_thresholds"
+CONF_LWT_DEVIATION_ENTITY = "lwt_deviation_entity"
+CONF_LWT_ACTUAL_SENSOR = "lwt_actual_sensor"
+CONF_LWT_SETPOINT_SENSOR = "lwt_setpoint_sensor"
+CONF_MAX_ROOM_SETPOINT = "max_room_setpoint"
+CONF_LWT_DEVIATION_MIN = "lwt_deviation_min"
+CONF_LWT_DEVIATION_MAX = "lwt_deviation_max"
+CONF_MIN_OFF_TIME_MINUTES = "min_off_time_minutes"
+CONF_LWT_OVERCAPACITY_THRESHOLD = "lwt_overcapacity_threshold"
+CONF_LWT_OVERCAPACITY_DURATION_MINUTES = "lwt_overcapacity_duration_minutes"
 
 ROOM_SCHEMA = vol.Schema(
     {
@@ -41,6 +50,15 @@ PLATFORM_SCHEMA = vol.Schema(
         vol.Optional(CONF_OUTDOOR_SENSOR): cv.entity_id,
         vol.Optional(CONF_OUTDOOR_SENSOR_FALLBACK): cv.entity_id,
         vol.Optional(CONF_OUTDOOR_THRESHOLDS): vol.All(cv.ensure_list, [OUTDOOR_THRESHOLD_SCHEMA]),
+        vol.Optional(CONF_LWT_DEVIATION_ENTITY): cv.entity_id,
+        vol.Optional(CONF_LWT_ACTUAL_SENSOR): cv.entity_id,
+        vol.Optional(CONF_LWT_SETPOINT_SENSOR): cv.entity_id,
+        vol.Optional(CONF_MAX_ROOM_SETPOINT, default=22.0): vol.Coerce(float),
+        vol.Optional(CONF_LWT_DEVIATION_MIN, default=-10.0): vol.Coerce(float),
+        vol.Optional(CONF_LWT_DEVIATION_MAX, default=10.0): vol.Coerce(float),
+        vol.Optional(CONF_MIN_OFF_TIME_MINUTES, default=30): vol.Coerce(int),
+        vol.Optional(CONF_LWT_OVERCAPACITY_THRESHOLD, default=1.0): vol.Coerce(float),
+        vol.Optional(CONF_LWT_OVERCAPACITY_DURATION_MINUTES, default=60): vol.Coerce(int),
     }
 )
 

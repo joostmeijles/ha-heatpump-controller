@@ -16,11 +16,20 @@ from homeassistant.util import dt as dt_util
 import logging
 
 from ..const import CONTROLLER, DOMAIN, HEATPUMP_CONTROLLER_FRIENDLY_NAME, ControlAlgorithm
-from ..config import CONF_ON_OFF_SWITCH, CONF_THRESHOLD_BEFORE_HEAT, CONF_THRESHOLD_BEFORE_OFF, CONF_THRESHOLD_ROOM_NEEDS_HEAT, RoomConfig, CONF_ROOMS, CONF_OUTDOOR_SENSOR, CONF_OUTDOOR_SENSOR_FALLBACK, CONF_OUTDOOR_THRESHOLDS
+from ..config import (
+    CONF_ON_OFF_SWITCH, CONF_THRESHOLD_BEFORE_HEAT, CONF_THRESHOLD_BEFORE_OFF,
+    CONF_THRESHOLD_ROOM_NEEDS_HEAT, RoomConfig, CONF_ROOMS, CONF_OUTDOOR_SENSOR,
+    CONF_OUTDOOR_SENSOR_FALLBACK, CONF_OUTDOOR_THRESHOLDS,
+    CONF_LWT_DEVIATION_ENTITY, CONF_LWT_ACTUAL_SENSOR, CONF_LWT_SETPOINT_SENSOR,
+    CONF_MAX_ROOM_SETPOINT, CONF_LWT_DEVIATION_MIN, CONF_LWT_DEVIATION_MAX,
+    CONF_MIN_OFF_TIME_MINUTES, CONF_LWT_OVERCAPACITY_THRESHOLD,
+    CONF_LWT_OVERCAPACITY_DURATION_MINUTES,
+)
 from .calculations import calculate_weighted_averages, calculate_num_rooms_below_target, any_room_needs_heat
 from .room_temperature_reader import read_room_temperatures
 from .outdoor_temperature import OutdoorTemperatureManager
 from .hvac_controller import HVACController
+from .lwt_controller import LWTController
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -33,7 +42,7 @@ class HeatpumpThermostat(ClimateEntity):
     _attr_hvac_modes = [HVACMode.HEAT, HVACMode.OFF]
     _attr_should_poll = False  # Disable polling, use time-based updates
 
-    def __init__(self, hass: HomeAssistant, rooms: list[RoomConfig], on_off_switch: str | None, threshold_before_heat: float, threshold_before_off: float, threshold_room_needs_heat: float, outdoor_sensor: str | None = None, outdoor_sensor_fallback: str | None = None, outdoor_thresholds: list[dict[str, Any]] | None = None) -> None:
+    def __init__(self, hass: HomeAssistant, rooms: list[RoomConfig], on_off_switch: str | None, threshold_before_heat: float, threshold_before_off: float, threshold_room_needs_heat: float, outdoor_sensor: str | None = None, outdoor_sensor_fallback: str | None = None, outdoor_thresholds: list[dict[str, Any]] | None = None, lwt_config: dict[str, Any] | None = None) -> None:
         self._attr_hvac_mode = HVACMode.OFF
         self.hass = hass
         self.rooms = rooms
@@ -52,6 +61,22 @@ class HeatpumpThermostat(ClimateEntity):
         self.hvac_controller = HVACController(
             threshold_before_heat, threshold_before_off, threshold_room_needs_heat
         )
+        
+        # Initialize LWT controller if configured
+        self.lwt_controller: LWTController | None = None
+        if lwt_config:
+            self.lwt_controller = LWTController(
+                hass=hass,
+                lwt_deviation_entity=lwt_config[CONF_LWT_DEVIATION_ENTITY],
+                lwt_actual_sensor=lwt_config[CONF_LWT_ACTUAL_SENSOR],
+                lwt_setpoint_sensor=lwt_config[CONF_LWT_SETPOINT_SENSOR],
+                max_room_setpoint=lwt_config[CONF_MAX_ROOM_SETPOINT],
+                lwt_deviation_min=lwt_config[CONF_LWT_DEVIATION_MIN],
+                lwt_deviation_max=lwt_config[CONF_LWT_DEVIATION_MAX],
+                min_off_time_minutes=lwt_config[CONF_MIN_OFF_TIME_MINUTES],
+                lwt_overcapacity_threshold=lwt_config[CONF_LWT_OVERCAPACITY_THRESHOLD],
+                lwt_overcapacity_duration_minutes=lwt_config[CONF_LWT_OVERCAPACITY_DURATION_MINUTES],
+            )
 
     async def async_set_temperature(self, **kwargs: Any) -> None:
         """Disable manual temperature setting."""
@@ -116,6 +141,27 @@ class HeatpumpThermostat(ClimateEntity):
             )
         return self._base_threshold_before_off
 
+    @property
+    def lwt_deviation(self) -> float | None:
+        """Return current LWT deviation if LWT controller is active."""
+        if self.lwt_controller and self.lwt_controller.is_active:
+            return self.lwt_controller.current_deviation
+        return None
+
+    @property
+    def lwt_overcapacity(self) -> bool:
+        """Return True if LWT overcapacity condition is met."""
+        if self.lwt_controller:
+            return self.lwt_controller.is_overcapacity
+        return False
+
+    @property
+    def lwt_off_remaining(self) -> float | None:
+        """Return minutes remaining in minimum off period."""
+        if self.lwt_controller:
+            return self.lwt_controller.off_remaining_minutes
+        return None
+
     def add_sensor(self, sensor: SensorEntity | BinarySensorEntity) -> None:
         _LOGGER.debug("Registering sensor %s with controller",
                       sensor.entity_id)
@@ -124,6 +170,20 @@ class HeatpumpThermostat(ClimateEntity):
     def set_algorithm(self, algorithm: ControlAlgorithm) -> None:
         if self._algorithm != algorithm:
             _LOGGER.info("Switching control algorithm to %s", algorithm)
+            
+            # Handle LWT Control mode transitions
+            if self.lwt_controller:
+                # Deactivate LWT mode if leaving
+                if self._algorithm == ControlAlgorithm.LWT_CONTROL and algorithm != ControlAlgorithm.LWT_CONTROL:
+                    self.hass.async_create_task(
+                        self.lwt_controller.deactivate(cast(list[dict[str, Any]], self.rooms))
+                    )
+                # Activate LWT mode if entering
+                elif self._algorithm != ControlAlgorithm.LWT_CONTROL and algorithm == ControlAlgorithm.LWT_CONTROL:
+                    self.hass.async_create_task(
+                        self.lwt_controller.activate(cast(list[dict[str, Any]], self.rooms))
+                    )
+            
             self._algorithm = algorithm
             self.hass.async_create_task(self._async_control_loop())
 
@@ -155,11 +215,47 @@ class HeatpumpThermostat(ClimateEntity):
             self._attr_current_temperature = avg_temp
             self._attr_target_temperature = avg_target
             
-            # Update HVAC mode using the controller
-            current_hvac = self._attr_hvac_mode if self._attr_hvac_mode is not None else HVACMode.OFF
-            self._attr_hvac_mode = self.hvac_controller.update_hvac_mode(
-                current_hvac, avg_needed_temp, self.any_room_needs_heat
-            )
+            # Handle LWT Control algorithm
+            if self.algorithm == ControlAlgorithm.LWT_CONTROL and self.lwt_controller:
+                # Record temperature for trend calculation
+                self.lwt_controller.record_temperature(avg_temp)
+                
+                # Check if heatpump is currently on or off
+                is_on = False
+                if self.on_off_switch:
+                    state = self.hass.states.get(self.on_off_switch)
+                    is_on = state is not None and state.state == "on"
+                
+                # Determine HVAC mode for LWT Control
+                if is_on:
+                    # Heatpump is ON - check if we should turn it off
+                    if self.lwt_controller.is_overcapacity:
+                        _LOGGER.info("LWT Control: Overcapacity detected, turning OFF")
+                        self._attr_hvac_mode = HVACMode.OFF
+                        self.lwt_controller.mark_off()
+                    else:
+                        # Keep running, adjust deviation
+                        self._attr_hvac_mode = HVACMode.HEAT
+                        deviation = self.lwt_controller.calculate_deviation(avg_needed_temp)
+                        await self.lwt_controller.set_lwt_deviation(deviation)
+                else:
+                    # Heatpump is OFF - check if we can restart
+                    if self.lwt_controller.can_restart():
+                        _LOGGER.info("LWT Control: Restart conditions met, turning ON")
+                        self._attr_hvac_mode = HVACMode.HEAT
+                        self.lwt_controller.clear_off()
+                        # Set initial deviation
+                        deviation = self.lwt_controller.calculate_deviation(avg_needed_temp)
+                        await self.lwt_controller.set_lwt_deviation(deviation)
+                    else:
+                        # Stay off
+                        self._attr_hvac_mode = HVACMode.OFF
+            else:
+                # Update HVAC mode using the standard controller
+                current_hvac = self._attr_hvac_mode if self._attr_hvac_mode is not None else HVACMode.OFF
+                self._attr_hvac_mode = self.hvac_controller.update_hvac_mode(
+                    current_hvac, avg_needed_temp, self.any_room_needs_heat
+                )
 
             self.current_temp_high_precision = round(avg_temp, 3)
             self.target_temp_high_precision = round(avg_target, 3)
@@ -234,6 +330,25 @@ def create_from_config(hass: HomeAssistant, config: dict[str, Any]) -> HeatpumpT
     outdoor_sensor_fallback: str | None = config.get(CONF_OUTDOOR_SENSOR_FALLBACK)
     outdoor_thresholds: list[dict[str, Any]
                              ] | None = config.get(CONF_OUTDOOR_THRESHOLDS)
+    
+    # Build LWT config if all required fields are present
+    lwt_config = None
+    if (
+        CONF_LWT_DEVIATION_ENTITY in config
+        and CONF_LWT_ACTUAL_SENSOR in config
+        and CONF_LWT_SETPOINT_SENSOR in config
+    ):
+        lwt_config = {
+            CONF_LWT_DEVIATION_ENTITY: config[CONF_LWT_DEVIATION_ENTITY],
+            CONF_LWT_ACTUAL_SENSOR: config[CONF_LWT_ACTUAL_SENSOR],
+            CONF_LWT_SETPOINT_SENSOR: config[CONF_LWT_SETPOINT_SENSOR],
+            CONF_MAX_ROOM_SETPOINT: config.get(CONF_MAX_ROOM_SETPOINT, 22.0),
+            CONF_LWT_DEVIATION_MIN: config.get(CONF_LWT_DEVIATION_MIN, -10.0),
+            CONF_LWT_DEVIATION_MAX: config.get(CONF_LWT_DEVIATION_MAX, 10.0),
+            CONF_MIN_OFF_TIME_MINUTES: config.get(CONF_MIN_OFF_TIME_MINUTES, 30),
+            CONF_LWT_OVERCAPACITY_THRESHOLD: config.get(CONF_LWT_OVERCAPACITY_THRESHOLD, 1.0),
+            CONF_LWT_OVERCAPACITY_DURATION_MINUTES: config.get(CONF_LWT_OVERCAPACITY_DURATION_MINUTES, 60),
+        }
 
     return HeatpumpThermostat(
         hass,
@@ -245,6 +360,7 @@ def create_from_config(hass: HomeAssistant, config: dict[str, Any]) -> HeatpumpT
         outdoor_sensor,
         outdoor_sensor_fallback,
         outdoor_thresholds,
+        lwt_config,
     )
 
 

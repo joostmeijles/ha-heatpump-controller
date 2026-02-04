@@ -8,7 +8,7 @@
     "sensor",
     "binary_sensor"
   ],
-  "requirements": [],
+  "requirements": ["numpy"],
   "codeowners": [],
   "dependencies": []
 }

@@ -39,6 +39,7 @@ def test_options(select_entity):
         "Manual",
         "Weighted Average",
         "Weighted Average with Outdoor Temp",
+        "LWT Control",
     ]
     assert select_entity.options == expected_options
 

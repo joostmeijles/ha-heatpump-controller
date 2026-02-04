@@ -48,5 +48,6 @@ async def async_setup_platform(
     async_add_entities([
         HeatpumpBinarySensor(
             controller, "any_room_needs_heat", "Any room below threshold"),
-        HeatpumpBinarySensor(controller, "is_paused", "Paused")
+        HeatpumpBinarySensor(controller, "is_paused", "Paused"),
+        HeatpumpBinarySensor(controller, "lwt_overcapacity", "LWT Overcapacity"),
     ])
